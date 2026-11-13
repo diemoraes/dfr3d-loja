@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Seu pedido | DFR 3D Impressão</title>
+  <meta name="robots" content="noindex">
+</head>
+<body>
+<main id="conteudo" class="container" style="max-width:860px;padding:2rem 0 4rem">
+  <div id="pedido"><p class="carregando">Carregando pedido…</p></div>
+</main>
+<script>
+  const { esc, brl } = DFR;
+  const codigo = decodeURIComponent(location.pathname.split('/')[2] || '');
+  const params = new URLSearchParams(location.search);
+
+  async function carregar() {
+    const el = document.getElementById('pedido');
+    try {
+      const q = params.get('payment_id') ? `?payment_id=${encodeURIComponent(params.get('payment_id'))}` : '';
+      const [p, cfg] = await Promise.all([DFR.api(`/api/pedidos/${encodeURIComponent(codigo)}${q}`), DFR.config()]);
+      const whats = cfg.whatsapp ? `https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(`Olá! Sobre o meu pedido ${p.codigo} na DFR 3D.`)}` : '';
+      const mpVoltou = params.get('status') || params.get('collection_status');
+      let topo = '';
+      if (p.status === 'aguardando_pagamento') {
+        topo = mpVoltou === 'pending' || mpVoltou === 'in_process'
+          ? `<div class="aviso">Recebemos seu pedido! O pagamento está em processamento (Pix/boleto podem levar alguns minutos). Esta página atualiza sozinha.</div>`
+          : mpVoltou === 'rejected' || mpVoltou === 'failure' || mpVoltou === 'null'
+            ? `<div class="aviso erro">O pagamento não foi concluído. Você pode tentar de novo abaixo.</div>`
+            : '';
+      } else if (p.status === 'cancelado') {
+        topo = `<div class="aviso">Este pedido foi cancelado. Se ainda quiser as peças, é só fazer um novo pedido ou chamar a gente no WhatsApp.</div>`;
+      } else if (p.status === 'pago') {
+        topo = `<div class="aviso ok">Pagamento confirmado! Já vamos colocar sua peça na impressora. 🔥</div>`;
+      }
+      el.innerHTML = `
+        ${topo}
+        <div class="caixa">
+          <span class="etiqueta">Pedido ${esc(p.codigo)}</span>
+          <h1 style="font-size:2rem">${p.status === 'aguardando_pagamento' ? `Quase lá, ${esc(p.cliente_nome)}!` : `Valeu, ${esc(p.cliente_nome)}!`}</h1>
+          <span class="status-pedido st-${esc(p.status)}">${esc(p.status_nome)}</span>
+          ${p.status === 'aguardando_pagamento' ? (cfg.pagamento_online
+            ? `<p class="suave" style="margin:1rem 0 0;font-size:.9rem">${p.forma_pagamento === 'pix' ? 'Pagamento via Pix com desconto. ' : ''}O pedido fica reservado por ${p.expira_em_horas} horas.</p><div style="margin-top:1rem;display:flex;gap:1rem;flex-wrap:wrap"><button class="btn" id="pagar"><span>Pagar ${brl(p.total_cents)}</span></button>${whats ? `<a class="btn contorno" href="${whats}" target="_blank" rel="noopener"><span>Falar no WhatsApp</span></a>` : ''}</div>`
+            : `<p style="margin-top:1.2rem">Vamos combinar o pagamento por Pix. ${whats ? `<a class="btn verde pequeno" href="${whats}" target="_blank" rel="noopener"><span>Chamar no WhatsApp</span></a>` : ''}</p>`) : ''}
+          ${p.rastreio ? `<div class="rastreio-box"><div><div class="suave" style="font-size:.8rem">${esc(p.entrega_servico)} · código de rastreio</div><code>${esc(p.rastreio)}</code>${p.rastreio_status_nome ? `<div style="font-size:.88rem;margin-top:.2rem">📦 ${esc(p.rastreio_status_nome)}</div>` : ''}</div>
+            <a class="btn pequeno" href="https://www.melhorrastreio.com.br/rastreio/${encodeURIComponent(p.rastreio)}" target="_blank" rel="noopener"><span>Rastrear entrega</span></a></div>` : ''}
+          <p class="suave" style="font-size:.85rem;margin:1rem 0 0"><a href="/conta">Minha conta</a> · todos os seus pedidos num lugar só</p>
+        </div>
+
+        <div class="caixa">
+          <h3>Itens</h3>
+          <div class="mini-itens">${p.itens.map((i) => `<div class="item-carrinho"><div class="mini">${DFR.fotoOuPlaceholder(i.imagem, i.nome)}</div>
+            <div>${esc(i.nome)}${DFR.detalhesItem(i) ? `<div class="suave" style="font-size:.88rem">${DFR.detalhesItem(i)}</div>` : ''}<div class="suave" style="font-size:.88rem">${i.quantidade}× ${brl(i.preco_cents)}</div></div>
+            <span>${brl(i.preco_cents * i.quantidade)}</span></div>`).join('')}</div>
+          <div class="resumo" style="position:static">
+            <div class="linha"><span>Subtotal</span><span>${brl(p.subtotal_cents)}</span></div>
+            ${p.desconto_cents ? `<div class="linha desconto"><span>Descontos${p.cupom ? ` (cupom ${esc(p.cupom)})` : ''}${p.forma_pagamento === 'pix' ? ' · Pix' : ''}</span><span>- ${brl(p.desconto_cents)}</span></div>` : ''}
+            <div class="linha"><span>${esc(p.entrega_servico)}</span><span>${p.frete_cents ? brl(p.frete_cents) : 'Grátis'}</span></div>
+            <div class="linha total"><span>Total</span><span>${brl(p.total_cents)}</span></div>
+          </div>
+          ${p.entrega_tipo === 'retirada' ? `<p class="suave" style="margin-bottom:0">Retirada: ${esc(p.retirada_endereco)}. Avisamos pelo WhatsApp quando estiver pronto.</p>`
+            : `<p class="suave" style="margin-bottom:0">Envio para ${esc(p.cidade)}/${esc(p.uf)}${p.entrega_prazo ? ` · prazo estimado de ${p.entrega_prazo} dia(s) útil(eis) após o pagamento` : ''}.</p>`}
+        </div>
+
+        <div class="caixa">
+          <h3>Acompanhamento</h3>
+          <ul class="linha-tempo">${p.historico.map((h) => `<li><strong>${esc(h.status_nome)}</strong> <span class="suave" style="font-size:.85rem">· ${esc(new Date(h.criado_em.replace(' ', 'T')).toLocaleString('pt-BR'))}</span></li>`).join('')}</ul>
+          <p class="suave" style="font-size:.88rem;margin:0">Guarde este link para acompanhar seu pedido.</p>
+        </div>
+        ${p.pode_avaliar && p.avaliar.length ? `<div class="caixa" id="avaliar"><h3>Avalie sua compra</h3>
+          <p class="suave" style="margin-top:0">Sua opinião ajuda outros clientes e a nossa oficina. Leva menos de 1 minuto.</p>
+          ${p.avaliar.map((a) => `<form class="form-avaliar" data-produto="${a.produto_id}" style="padding:1rem 0;border-top:1px solid var(--linha)">
+            <strong>${esc(a.nome)}</strong>
+            <div class="seletor-estrelas" role="radiogroup" aria-label="Nota">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" id="n${a.produto_id}-${n}" name="nota" value="${n}"><label for="n${a.produto_id}-${n}" title="${n} estrela(s)">★</label>`).join('')}</div>
+            <div class="campo" style="margin-top:.5rem"><textarea name="comentario" style="min-height:70px" placeholder="Conte o que achou (opcional)"></textarea></div>
+            <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><label style="margin:0" class="link-btn">📷 Adicionar foto <input type="file" name="foto" accept="image/*" hidden></label><span class="suave nome-foto" style="font-size:.85rem"></span>
+            <button class="btn pequeno" style="margin-left:auto"><span>Enviar avaliação</span></button></div></form>`).join('')}</div>` : p.pode_avaliar ? '<div class="caixa"><p style="margin:0">Obrigado por avaliar! ⭐</p></div>' : ''}`;
+
+      // Avaliações
+      document.querySelectorAll('.form-avaliar').forEach((f) => {
+        f.foto.addEventListener('change', () => { f.querySelector('.nome-foto').textContent = f.foto.files[0]?.name || ''; });
+        f.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const nota = f.querySelector('input[name=nota]:checked')?.value;
+          if (!nota) return DFR.toast('Escolha de 1 a 5 estrelas.');
+          const b = f.querySelector('button'); b.disabled = true;
+          try {
+            const foto = f.foto.files[0] ? await reduzirFoto(f.foto.files[0]) : '';
+            await DFR.api(`/api/pedidos/${encodeURIComponent(p.codigo)}/avaliar`, { method: 'POST', body: { produto_id: Number(f.dataset.produto), nota: Number(nota), comentario: f.comentario.value, foto } });
+            f.innerHTML = '<p style="margin:0;color:#4ade80">Obrigado! Sua avaliação aparece na loja depois de revisada.</p>';
+          } catch (err) { DFR.toast(esc(err.message)); b.disabled = false; }
+        });
+      });
+      if (location.hash === '#avaliar') document.getElementById('avaliar')?.scrollIntoView({ behavior: 'smooth' });
+
+      // Conversão (Analytics/Pixel): só uma vez, quando o pagamento é confirmado
+      if (!['aguardando_pagamento', 'cancelado'].includes(p.status) && !DFR.armazenar.ler('dfr3d_conv_' + p.codigo)) {
+        DFR.armazenar.gravar('dfr3d_conv_' + p.codigo, '1');
+        DFR.track('purchase', { transaction_id: p.codigo, value: p.total_cents / 100, shipping: p.frete_cents / 100,
+          items: p.itens.map((i) => ({ item_id: i.produto_id, item_name: i.nome, item_variant: i.variacao || i.cor, price: i.preco_cents / 100, quantity: i.quantidade })) });
+      }
+
+      document.getElementById('pagar')?.addEventListener('click', async (e) => {
+        const b = e.currentTarget; b.disabled = true;
+        try { location.href = (await DFR.api(`/api/pedidos/${encodeURIComponent(p.codigo)}/pagar`, { method: 'POST' })).link_pagamento; }
+        catch (err) { DFR.toast(esc(err.message)); b.disabled = false; }
+      });
+
+      // Enquanto aguarda o Pix, consulta de novo a cada 10 segundos
+      if (p.status === 'aguardando_pagamento' && mpVoltou) setTimeout(carregar, 10000);
+    } catch (e) {
+      el.innerHTML = `<div class="vazio"><h1>Pedido não encontrado</h1><p class="suave">${esc(e.message)}</p><a class="btn" href="/"><span>Voltar à loja</span></a></div>`;
+    }
+  }
+  function reduzirFoto(arquivo) {
+    return new Promise((ok, falha) => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1200 / Math.max(img.width, img.height));
+        const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); ok(cv.toDataURL('image/jpeg', .85));
+      };
+      img.onerror = () => falha(new Error('Não consegui abrir essa foto.'));
+      img.src = URL.createObjectURL(arquivo);
+    });
+  }
+  carregar();
+</script>
+</body>
+</html>

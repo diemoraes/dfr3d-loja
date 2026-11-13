@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Produto | DFR 3D Impressão</title>
+</head>
+<body>
+<main id="conteudo" class="container">
+  <div id="produto"><p class="carregando">Carregando…</p></div>
+  <section id="perguntas" class="avaliacoes"></section>
+  <section id="avaliacoes"></section>
+</main>
+<script>
+  const slug = decodeURIComponent(location.pathname.split('/')[2] || '');
+  const el = document.getElementById('produto');
+  const { esc, brl } = DFR;
+
+  DFR.api('/api/produtos/' + encodeURIComponent(slug)).then(async (p) => {
+    const cfg = await DFR.config();
+    document.title = `${p.nome} | DFR 3D Impressão`;
+    const temVar = p.variacoes.length > 0;
+    let preco = temVar ? p.variacoes[0].preco_cents : p.preco_cents;
+    const original = () => (temVar ? Number(document.querySelector('input[name=variacao]:checked')?.dataset.original || p.variacoes[0].preco_original_cents) : p.preco_original_cents);
+    const textoPreco = () => `${p.promo_pct ? `<p class="preco-de">${brl(original())}</p>` : ''}
+      <p class="preco-grande" id="preco" style="${p.promo_pct ? 'margin-top:0' : ''}">${brl(preco)}</p>
+      ${p.promo_pct ? `<span class="faixa-promo">🔥 ${p.promo_pct}% OFF${p.promo_ate ? ` até ${new Date(p.promo_ate + 'T12:00').toLocaleDateString('pt-BR')}` : ''}</span>` : ''}
+      <div class="parcelas">${cfg.pix_desconto ? `<strong style="color:#4ade80">${brl(Math.round(preco * (100 - cfg.pix_desconto) / 100))} no Pix</strong> (${cfg.pix_desconto}% off) · ` : ''}ou até 12x no cartão</div>`;
+
+    el.innerHTML = `
+      <p style="margin:1.5rem 0 0;font-size:.9rem"><a href="/produtos" class="suave">← Produtos</a>${p.categoria ? ` <a class="suave" href="/produtos?categoria=${encodeURIComponent(p.categoria)}">/ ${esc(p.categoria)}</a>` : ''}</p>
+      <div class="produto">
+        <div class="galeria">
+          <div class="principal" id="foto-principal">${DFR.fotoOuPlaceholder(p.imagens[0], p.nome)}</div>
+          ${p.imagens.length > 1 ? `<div class="miniaturas">${p.imagens.map((src, i) => `<button type="button" data-i="${i}" class="${i === 0 ? 'ativo' : ''}" aria-label="Foto ${i + 1}"><img src="${esc(src)}" alt=""></button>`).join('')}</div>` : ''}
+        </div>
+        <div>
+          <h1 style="font-size:clamp(1.8rem,4vw,2.8rem)">${esc(p.nome)}</h1>
+          ${p.avaliacao.quantidade ? `<a href="#avaliacoes" style="text-decoration:none">${DFR.estrelas(p.avaliacao.media)} <span class="suave">${p.avaliacao.media.toFixed(1).replace('.', ',')} (${p.avaliacao.quantidade} avaliaç${p.avaliacao.quantidade > 1 ? 'ões' : 'ão'})</span></a>` : ''}
+          <div id="bloco-preco">${textoPreco()}</div>
+          <form id="form-comprar">
+            ${temVar ? `<div class="campo"><label>${esc(p.variacao_rotulo)}</label><div class="cores">${p.variacoes.map((v, i) => `<label><input type="radio" name="variacao" value="${esc(v.nome)}" data-preco="${v.preco_cents}" data-original="${v.preco_original_cents}" ${i === 0 ? 'checked' : ''}><span>${esc(v.nome)} <small class="suave">${brl(v.preco_cents)}</small></span></label>`).join('')}</div></div>` : ''}
+            ${p.cores.length ? `<div class="campo"><label>Cor</label><div class="cores">${p.cores.map((c, i) => `<label><input type="radio" name="cor" value="${esc(c)}" ${i === 0 ? 'checked' : ''}><span>${esc(c)}</span></label>`).join('')}</div></div>` : ''}
+            ${p.personalizacao ? `<div class="campo"><label for="personalizacao">${esc(p.personalizacao)}</label><input id="personalizacao" maxlength="${p.personalizacao_max}" required placeholder="Até ${p.personalizacao_max} caracteres"><div class="ajuda">Confira bem a escrita: a peça é feita exatamente como você digitar.</div></div>` : ''}
+            <div class="campo" style="display:flex;gap:1rem;align-items:end;flex-wrap:wrap">
+              <div><label for="qtd">Quantidade</label>
+                <div class="qtd"><button type="button" data-d="-1" aria-label="Diminuir">−</button><input id="qtd" type="number" min="1" max="${p.estoque ?? 100}" value="1" inputmode="numeric"><button type="button" data-d="1" aria-label="Aumentar">+</button></div>
+              </div>
+              <button class="btn" style="flex:1;min-width:200px" ${p.disponivel ? '' : 'disabled'}><span>${p.disponivel ? 'Adicionar ao carrinho' : 'Esgotado'}</span></button>
+            </div>
+          </form>
+          <div class="infos-produto">
+            <div><b>▸</b> ${p.sob_demanda ? `Feito sob demanda: produção em até ${p.prazo_dias} dia(s) útil(eis) + envio` : p.estoque > 0 ? `${p.estoque} em estoque · sai em até ${Math.max(p.prazo_dias, 1)} dia(s) útil(eis)` : 'Esgotado no momento'}</div>
+            <div><b>▸</b> Envio para todo o Brasil ou retirada no local</div>
+            <div><b>▸</b> Dúvidas? <a href="#perguntas">Pergunte aqui</a> ou chame no WhatsApp</div>
+            <div><b>▸</b> 7 dias para desistir · <a href="/politicas#trocas">trocas e devoluções</a></div>
+            <div><b>▸</b> Quer em outra cor ou tamanho? <a href="/encomenda?ref=${encodeURIComponent(p.nome)}">Peça sob encomenda</a></div>
+          </div>
+          ${p.descricao ? `<h3>Descrição</h3><div class="descricao">${esc(p.descricao)}</div>` : ''}
+        </div>
+      </div>`;
+
+    // Avaliações
+    document.getElementById('avaliacoes').innerHTML = p.avaliacoes.length ? `<div class="avaliacoes">
+      <h2>Avaliações</h2>
+      <div class="nota-media"><span class="valor">${p.avaliacao.media.toFixed(1).replace('.', ',')}</span><div>${DFR.estrelas(p.avaliacao.media)}<div class="suave">${p.avaliacao.quantidade} avaliaç${p.avaliacao.quantidade > 1 ? 'ões' : 'ão'} de clientes</div></div></div>
+      ${p.avaliacoes.map((a) => `<div class="avaliacao">${DFR.estrelas(a.nota)} <strong>${esc(a.nome)}</strong> <span class="suave" style="font-size:.85rem">· ${new Date(a.criado_em.replace(' ', 'T')).toLocaleDateString('pt-BR')} · compra verificada</span>
+        ${a.comentario ? `<p style="margin:.4rem 0 0">${esc(a.comentario)}</p>` : ''}${a.foto ? `<a href="${esc(a.foto)}" target="_blank"><img src="${esc(a.foto)}" alt="Foto do cliente" loading="lazy"></a>` : ''}</div>`).join('')}
+    </div>` : '';
+
+    montarPerguntas(p);
+
+    const itemGa = () => ({ item_id: p.id, item_name: p.nome, item_category: p.categoria, price: preco / 100 });
+    DFR.track('view_item', { value: preco / 100, items: [itemGa()] });
+
+    el.querySelector('.miniaturas')?.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      el.querySelectorAll('.miniaturas button').forEach((x) => x.classList.toggle('ativo', x === b));
+      document.getElementById('foto-principal').innerHTML = `<img src="${esc(p.imagens[b.dataset.i])}" alt="${esc(p.nome)}">`;
+    });
+    el.querySelectorAll('input[name=variacao]').forEach((r) => r.addEventListener('change', () => {
+      preco = Number(r.dataset.preco); document.getElementById('bloco-preco').innerHTML = textoPreco();
+    }));
+    const qtd = document.getElementById('qtd');
+    el.querySelectorAll('[data-d]').forEach((b) => b.addEventListener('click', () => {
+      qtd.value = Math.min(Math.max(1, Number(qtd.value) + Number(b.dataset.d)), Number(qtd.max));
+    }));
+    document.getElementById('form-comprar').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const personalizacao = document.getElementById('personalizacao')?.value.trim() || '';
+      if (p.personalizacao && !personalizacao) { DFR.toast(`Preencha: ${esc(p.personalizacao)}`); return document.getElementById('personalizacao').focus(); }
+      const quantidade = Math.max(1, Math.floor(Number(qtd.value) || 1));
+      DFR.carrinho.adicionar(p, {
+        quantidade, preco_cents: preco, personalizacao,
+        cor: el.querySelector('input[name=cor]:checked')?.value || '',
+        variacao: el.querySelector('input[name=variacao]:checked')?.value || '',
+      });
+      DFR.track('add_to_cart', { value: preco * quantidade / 100, items: [{ ...itemGa(), quantity: quantidade }] });
+      DFR.toast(`Adicionado ao carrinho! <a href="/carrinho">Ver carrinho →</a>`);
+    });
+  }).catch((e) => {
+    document.getElementById('perguntas').innerHTML = '';
+    el.innerHTML = `<div class="vazio"><h1>Produto não encontrado</h1><p class="suave">${esc(e.message)}</p><a class="btn" href="/produtos"><span>Ver produtos</span></a></div>`;
+  });
+
+  // ---------- Perguntas e respostas ----------
+  async function montarPerguntas(p) {
+    const sec = document.getElementById('perguntas');
+    const [lista, conta, cfg] = await Promise.all([DFR.api(`/api/produtos/${encodeURIComponent(p.slug)}/perguntas`).catch(() => []), DFR.conta(), DFR.config()]);
+    const logado = conta.logado;
+    const data = (s) => new Date(s.replace(' ', 'T')).toLocaleDateString('pt-BR');
+    const item = (q) => `<div class="qa"><p class="q"><span class="tag-q">P</span>${esc(q.pergunta)}</p>
+      <p class="r"><span class="tag-r">R</span>${esc(q.resposta).replace(/\n/g, '<br>')}<small class="suave"> · ${data(q.respondida_em || q.criado_em)}</small></p></div>`;
+    sec.innerHTML = `<h2>Perguntas <span class="vermelho">e respostas</span></h2>
+      <form id="form-pergunta" class="caixa" novalidate>
+        <label for="pergunta">Tem alguma dúvida sobre este produto?</label>
+        <div class="linha-pergunta"><textarea id="pergunta" maxlength="1000" placeholder="Ex.: Dá para fazer em outra cor? Qual o tamanho exato? Aguenta ficar no sol?" style="min-height:70px"></textarea></div>
+        ${logado ? `<p class="suave" style="font-size:.85rem;margin:.5rem 0 0">Perguntando como <strong>${esc(conta.cliente.nome)}</strong>. Avisamos a resposta no seu e-mail.</p>`
+          : `<div class="linha-campos" style="margin-top:.7rem"><div class="campo" style="margin:0"><label for="q-nome">Seu nome</label><input id="q-nome" autocomplete="name"></div>
+             <div class="campo" style="margin:0"><label for="q-email">E-mail <span class="suave">(não aparece no site)</span></label><input id="q-email" type="email" autocomplete="email"></div></div>`}
+        <input type="text" name="site" id="q-site" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px">
+        <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-top:.9rem">
+          <button class="btn"><span>Perguntar</span></button>
+          ${cfg.whatsapp ? `<a class="suave" style="font-size:.88rem" href="https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent('Olá! Tenho uma dúvida sobre o produto ' + p.nome + ': ' + location.href)}" target="_blank" rel="noopener">Prefere o WhatsApp? Clique aqui</a>` : ''}
+        </div>
+        <div id="msg-pergunta"></div>
+      </form>
+      ${lista.length > 4 ? '<input id="filtro-qa" type="search" placeholder="Buscar nas perguntas já respondidas…" style="margin:1.2rem 0 .4rem">' : ''}
+      <div id="lista-qa">${lista.length ? lista.map(item).join('') : '<p class="suave" style="margin-top:1.2rem">Ninguém perguntou ainda. Seja o primeiro!</p>'}</div>
+      ${lista.length ? `<p class="suave" style="font-size:.82rem">${lista.length} pergunta${lista.length > 1 ? 's' : ''} respondida${lista.length > 1 ? 's' : ''}</p>` : ''}`;
+    document.getElementById('filtro-qa')?.addEventListener('input', (e) => {
+      const n = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const termo = n(e.target.value.trim());
+      const filtradas = lista.filter((q) => n(q.pergunta + ' ' + q.resposta).includes(termo));
+      document.getElementById('lista-qa').innerHTML = filtradas.length ? filtradas.map(item).join('') : '<p class="suave">Nenhuma pergunta parecida. Faça a sua acima!</p>';
+    });
+    document.getElementById('form-pergunta').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const b = e.currentTarget.querySelector('button'); b.disabled = true;
+      try {
+        await DFR.api(`/api/produtos/${encodeURIComponent(p.slug)}/perguntas`, { method: 'POST', body: {
+          pergunta: document.getElementById('pergunta').value, nome: document.getElementById('q-nome')?.value, email: document.getElementById('q-email')?.value, site: document.getElementById('q-site').value } });
+        document.getElementById('pergunta').value = '';
+        document.getElementById('msg-pergunta').innerHTML = '<div class="aviso ok" style="margin:1rem 0 0">Pergunta enviada! Você recebe a resposta por e-mail e ela aparece aqui assim que respondermos.</div>';
+      } catch (err) { document.getElementById('msg-pergunta').innerHTML = `<div class="aviso erro" style="margin:1rem 0 0">${esc(err.message)}</div>`; }
+      b.disabled = false;
+    });
+    if (location.hash === '#perguntas') sec.scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>

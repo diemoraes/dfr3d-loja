@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Minha conta | DFR 3D Impressão</title>
+</head>
+<body>
+<main id="conteudo" class="container" style="max-width:960px;padding-bottom:4rem">
+  <div id="conta"><p class="carregando">Carregando…</p></div>
+</main>
+<script>
+  const { esc, brl, $ } = DFR;
+  const el = $('#conta');
+  const params = new URLSearchParams(location.search);
+  const data = (s) => new Date(s.replace(' ', 'T')).toLocaleDateString('pt-BR');
+
+  function formConsulta() {
+    return `<div class="caixa" style="margin-top:1.2rem"><h3>Acompanhar sem entrar</h3>
+      <p class="suave" style="margin-top:0">Digite o número do pedido que chegou no seu e-mail (ex.: DFR-ABC123).</p>
+      <form id="consulta" class="copiar" style="display:flex;gap:.6rem;flex-wrap:wrap"><label for="cod" class="sr-only">Número do pedido</label>
+        <input id="cod" placeholder="DFR-XXXXXX" style="max-width:260px;text-transform:uppercase" required><button class="btn contorno"><span>Acompanhar</span></button></form></div>`;
+  }
+  function ligarConsulta() {
+    $('#consulta')?.addEventListener('submit', (e) => { e.preventDefault(); const c = $('#cod').value.trim().toUpperCase(); if (c) location.href = '/pedido/' + encodeURIComponent(c); });
+  }
+
+  function telaEntrar(c) {
+    el.innerHTML = `
+      ${params.get('erro') ? '<div class="aviso erro" style="margin-top:1.5rem">Não foi possível entrar com o Google. Tente de novo.</div>' : ''}
+      <div class="caixa" style="margin-top:2rem;text-align:center;padding:2.5rem 1.5rem">
+        <span class="etiqueta">Minha conta</span>
+        <h1 style="font-size:2rem">Seus pedidos num lugar só</h1>
+        <p class="suave" style="max-width:34rem;margin:0 auto 1.6rem">Entre para acompanhar a produção e a entrega, rastrear o envio e comprar mais rápido com seus dados já preenchidos.</p>
+        ${c.google ? `<a class="btn-google" href="${DFR.urlLogin('/conta')}"><span class="g" aria-hidden="true">G</span>Entrar com Google</a>
+          <p class="suave" style="font-size:.82rem;margin:1rem 0 0">Não criamos senha nem acessamos seus e-mails: só nome, e-mail e foto do perfil. <a href="/politicas#privacidade">Privacidade</a></p>`
+          : '<p class="suave">O login ainda não está disponível. Use o número do pedido abaixo.</p>'}
+      </div>
+      ${formConsulta()}`;
+    ligarConsulta();
+  }
+
+  function cartaoPedido(p) {
+    const cancelado = p.status === 'cancelado';
+    return `<div class="caixa pedido-conta" data-codigo="${esc(p.codigo)}">
+      <div class="cab">
+        <div><strong style="font-size:1.1rem">${esc(p.codigo)}</strong> <span class="suave" style="font-size:.88rem">· ${data(p.criado_em)} · ${brl(p.total_cents)}</span></div>
+        <span class="status-pedido st-${esc(p.status)}">${esc(p.status_nome)}</span>
+      </div>
+      <div class="miniaturas-pedido">${p.itens.map((i) => `<div class="mini" title="${esc(i.quantidade + 'x ' + i.nome + (i.detalhes ? ' · ' + i.detalhes : ''))}">${DFR.fotoOuPlaceholder(i.imagem, i.nome)}</div>`).join('')}
+        <span class="suave" style="font-size:.88rem;align-self:center">${p.itens.map((i) => `${i.quantidade}× ${esc(i.nome)}`).join(', ')}</span></div>
+      ${cancelado ? '' : `<div class="etapas" aria-label="Andamento do pedido">${p.etapas.map((e, idx) => `<div class="${idx <= p.etapa_atual ? 'feito' : ''} ${idx === p.etapa_atual ? 'atual' : ''}">${esc(e.nome)}</div>`).join('')}</div>`}
+      ${p.entrega_tipo === 'envio' && !cancelado ? (p.rastreio ? `<div class="rastreio-box">
+          <div><div class="suave" style="font-size:.8rem">${esc(p.entrega_servico)} · código de rastreio</div><code>${esc(p.rastreio)}</code>
+          ${p.rastreio_status_nome ? `<div style="font-size:.88rem;margin-top:.2rem">📦 ${esc(p.rastreio_status_nome)}</div>` : ''}</div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            ${p.pode_atualizar_rastreio ? '<button class="btn pequeno contorno" data-atualizar><span>Atualizar</span></button>' : ''}
+            <button class="btn pequeno contorno" data-copiar="${esc(p.rastreio)}"><span>Copiar</span></button>
+            <a class="btn pequeno" href="https://www.melhorrastreio.com.br/rastreio/${encodeURIComponent(p.rastreio)}" target="_blank" rel="noopener"><span>Rastrear</span></a></div></div>`
+        : `<p class="suave" style="font-size:.88rem;margin:.6rem 0 0">📦 ${esc(p.entrega_servico)}: o código de rastreio aparece aqui assim que o pedido for postado.</p>`) : ''}
+      ${p.entrega_tipo === 'retirada' && !cancelado ? `<p class="suave" style="font-size:.88rem;margin:.6rem 0 0">📍 Retirada no local — ${p.status === 'pronto_retirada' ? '<strong style="color:#fff">pronto! Combine o horário pelo WhatsApp.</strong>' : 'avisamos quando estiver pronto.'}</p>` : ''}
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;margin-top:1rem">
+        ${p.link_pagamento ? `<a class="btn pequeno" href="${esc(p.link_pagamento)}"><span>Pagar agora</span></a>` : ''}
+        <a class="btn pequeno contorno" href="/pedido/${encodeURIComponent(p.codigo)}"><span>Ver detalhes</span></a>
+        ${p.status === 'entregue' || p.status === 'enviado' ? `<a class="btn pequeno contorno" href="/pedido/${encodeURIComponent(p.codigo)}#avaliar"><span>Avaliar</span></a>` : ''}
+      </div>
+    </div>`;
+  }
+
+  async function telaConta(conta) {
+    const c = conta.cliente;
+    const { pedidos, encomendas } = await DFR.api('/api/conta/pedidos');
+    const ativos = pedidos.filter((p) => !['entregue', 'cancelado'].includes(p.status));
+    const antigos = pedidos.filter((p) => ['entregue', 'cancelado'].includes(p.status));
+    el.innerHTML = `
+      <div class="conta-topo">
+        <span class="avatar">${c.foto ? `<img src="${esc(c.foto)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith('👤')">` : '👤'}</span>
+        <div style="flex:1"><h1>Olá, ${esc(c.primeiro_nome)}!</h1><span class="suave">${esc(c.email)}</span></div>
+        <button class="btn contorno pequeno" id="sair"><span>Sair</span></button>
+      </div>
+      <div class="abas" role="tablist">
+        <button class="ativo" data-aba="pedidos">Pedidos (${pedidos.length})</button>
+        <button data-aba="encomendas">Orçamentos (${encomendas.length})</button>
+        <button data-aba="dados">Meus dados</button>
+      </div>
+      <section data-painel="pedidos">
+        ${pedidos.length ? `${ativos.length ? `<h3>Em andamento</h3>${ativos.map(cartaoPedido).join('')}` : ''}
+          ${antigos.length ? `<h3 style="margin-top:2rem">Anteriores</h3>${antigos.map(cartaoPedido).join('')}` : ''}`
+          : `<div class="caixa vazio"><p class="suave">Você ainda não tem pedidos.</p><a class="btn" href="/produtos"><span>Ver produtos</span></a></div>`}
+      </section>
+      <section data-painel="encomendas" hidden>
+        ${encomendas.length ? encomendas.map((e) => `<div class="caixa pedido-conta"><div class="cab"><div><strong>${esc(e.codigo)}</strong> <span class="suave" style="font-size:.88rem">· ${data(e.criado_em)}</span></div>
+          <span class="status-pedido st-${esc(e.status)}">${esc(e.status_nome)}</span></div>
+          <p class="suave" style="margin:.6rem 0 0;white-space:pre-line">${esc(e.descricao.slice(0, 240))}${e.descricao.length > 240 ? '…' : ''}</p>
+          ${e.valor_cents ? `<p style="margin:.6rem 0 0">Valor orçado: <strong>${brl(e.valor_cents)}</strong></p>` : ''}
+          ${e.pedido_codigo ? `<a class="btn pequeno" style="margin-top:.8rem" href="/pedido/${encodeURIComponent(e.pedido_codigo)}"><span>Ver pedido ${esc(e.pedido_codigo)}</span></a>` : ''}</div>`).join('')
+          : '<div class="caixa vazio"><p class="suave">Nenhum orçamento ainda.</p><a class="btn" href="/encomenda"><span>Pedir orçamento</span></a></div>'}
+      </section>
+      <section data-painel="dados" hidden>
+        <form class="caixa" id="form-dados">
+          <p class="suave" style="margin-top:0">Esses dados preenchem o checkout automaticamente.</p>
+          <div class="linha-campos">
+            <div class="campo"><label for="telefone">WhatsApp</label><input id="telefone" value="${esc(c.telefone)}" inputmode="tel"></div>
+            <div class="campo"><label for="cpf">CPF</label><input id="cpf" value="${esc(c.cpf)}" inputmode="numeric"></div>
+          </div>
+          <div class="linha-campos" style="--cols:3">
+            <div class="campo"><label for="cep">CEP</label><input id="cep" value="${esc(c.endereco.cep)}" inputmode="numeric"></div>
+            <div class="campo" style="grid-column:span 2"><label for="rua">Rua</label><input id="rua" value="${esc(c.endereco.endereco)}"></div>
+          </div>
+          <div class="linha-campos" style="--cols:3">
+            <div class="campo"><label for="numero">Número</label><input id="numero" value="${esc(c.endereco.numero)}"></div>
+            <div class="campo"><label for="complemento">Complemento</label><input id="complemento" value="${esc(c.endereco.complemento)}"></div>
+            <div class="campo"><label for="bairro">Bairro</label><input id="bairro" value="${esc(c.endereco.bairro)}"></div>
+          </div>
+          <div class="linha-campos" style="--cols:3">
+            <div class="campo" style="grid-column:span 2"><label for="cidade">Cidade</label><input id="cidade" value="${esc(c.endereco.cidade)}"></div>
+            <div class="campo"><label for="uf">UF</label><input id="uf" maxlength="2" value="${esc(c.endereco.uf)}"></div>
+          </div>
+          <div class="acoes-gaveta" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><button class="btn"><span>Salvar</span></button>
+            <button type="button" class="link-btn" id="excluir" style="margin-left:auto">Excluir minha conta</button></div>
+        </form>
+      </section>`;
+
+    el.querySelector('.abas').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-aba]'); if (!b) return;
+      el.querySelectorAll('.abas button').forEach((x) => x.classList.toggle('ativo', x === b));
+      el.querySelectorAll('[data-painel]').forEach((s) => { s.hidden = s.dataset.painel !== b.dataset.aba; });
+    });
+    $('#sair').onclick = async () => { await DFR.api('/api/conta/sair', { method: 'POST' }); location.href = '/'; };
+    $('#excluir').onclick = async () => {
+      if (!confirm('Excluir sua conta? Seus dados salvos serão apagados. Os pedidos continuam acessíveis pelo número.')) return;
+      await DFR.api('/api/conta', { method: 'DELETE' }); location.href = '/';
+    };
+    $('#cep').addEventListener('input', (e) => {
+      const cep = e.target.value.replace(/\D/g, ''); if (cep.length !== 8) return;
+      fetch(`https://viacep.com.br/ws/${cep}/json/`).then((r) => r.json()).then((d) => { if (d.erro) return; $('#rua').value = d.logradouro || $('#rua').value; $('#bairro').value = d.bairro || $('#bairro').value; $('#cidade').value = d.localidade; $('#uf').value = d.uf; }).catch(() => {});
+    });
+    $('#form-dados').onsubmit = async (e) => {
+      e.preventDefault();
+      const v = (id) => $('#' + id).value;
+      try {
+        await DFR.api('/api/conta', { method: 'PUT', body: { telefone: v('telefone'), cpf: v('cpf'), endereco: { cep: v('cep'), endereco: v('rua'), numero: v('numero'), complemento: v('complemento'), bairro: v('bairro'), cidade: v('cidade'), uf: v('uf') } } });
+        DFR.toast('Dados salvos!');
+      } catch (err) { DFR.toast(esc(err.message)); }
+    };
+    el.addEventListener('click', async (e) => {
+      const cp = e.target.closest('[data-copiar]');
+      if (cp) { navigator.clipboard.writeText(cp.dataset.copiar).then(() => DFR.toast('Código copiado!')); return; }
+      const at = e.target.closest('[data-atualizar]');
+      if (at) {
+        const card = at.closest('[data-codigo]'); at.disabled = true;
+        try { const p = await DFR.api(`/api/conta/pedidos/${encodeURIComponent(card.dataset.codigo)}/rastreio`, { method: 'POST' }); card.outerHTML = cartaoPedido(p); DFR.toast('Rastreio atualizado.'); }
+        catch (err) { DFR.toast(esc(err.message)); at.disabled = false; }
+      }
+    });
+  }
+
+  DFR.conta().then((c) => (c.logado ? telaConta(c) : telaEntrar(c))).catch((e) => { el.innerHTML = `<p class="aviso erro">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

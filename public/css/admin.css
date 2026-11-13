@@ -1,0 +1,60 @@
+/* Painel administrativo DFR 3D */
+.admin { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+.admin aside { background: #050506; border-right: 1px solid var(--linha); padding: 1.2rem; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: .3rem; }
+.admin aside img { width: 150px; margin: .3rem 0 1.4rem; }
+.admin aside button { text-align: left; background: none; border: 0; color: var(--suave); font: inherit; padding: .7rem .9rem; border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+.admin aside button:hover { background: var(--painel); color: #fff; }
+.admin aside button.ativo { background: var(--vermelho); color: #fff; }
+.admin aside .badge { background: #fff; color: #000; border-radius: 999px; font-size: .75rem; padding: 0 .5rem; font-weight: 700; }
+.admin aside .rodape-menu { margin-top: auto; display: grid; gap: .3rem; }
+.admin aside .rodape-menu a { color: var(--suave); font-size: .9rem; padding: .4rem .9rem; text-decoration: none; }
+.admin .conteudo { padding: 2rem clamp(1rem, 3vw, 2.5rem); min-width: 0; }
+.admin .cabecalho { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.admin .cabecalho h1 { font-size: 2rem; margin: 0; }
+@media (max-width: 800px) {
+  .admin { grid-template-columns: 1fr; }
+  .admin aside { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: .7rem; }
+  .admin aside img { width: 90px; margin: 0 .5rem 0 0; }
+  .admin aside .rodape-menu { margin: 0; display: flex; }
+}
+.cards-resumo { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.cards-resumo .caixa { padding: 1.2rem; margin: 0; cursor: default; }
+.cards-resumo .valor { font-family: var(--fonte-titulo); font-style: italic; font-weight: 800; font-size: 2rem; }
+.cards-resumo button.caixa { text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.cards-resumo button.caixa:hover { border-color: var(--vermelho); }
+table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+th { text-align: left; color: var(--suave); font-weight: 500; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; padding: .7rem .8rem; border-bottom: 1px solid var(--linha); }
+td { padding: .8rem; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--painel); }
+.tabela-wrap { overflow-x: auto; background: var(--grafite); border: 1px solid var(--linha); border-radius: var(--raio); }
+.mini-foto { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: #0d0d10; }
+.mini-foto img { width: 100%; height: 100%; object-fit: cover; }
+.mini-foto .placeholder { font-size: 1rem; }
+.st-nova { --cor: var(--amarelo); } .st-orcada { --cor: #3b82f6; } .st-aprovada { --cor: var(--verde); } .st-recusada { --cor: #71717a; }
+.st-aguardando_pagamento { --cor: var(--amarelo); }
+
+/* Gaveta lateral de edição */
+.gaveta-fundo { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 80; display: none; }
+.gaveta-fundo.aberta { display: block; }
+.gaveta { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100%); background: var(--grafite); border-left: 1px solid var(--linha); z-index: 90; overflow-y: auto; padding: 1.6rem; transform: translateX(100%); transition: transform .25s; }
+.gaveta.aberta { transform: none; }
+.gaveta .fechar { position: absolute; top: 1rem; right: 1rem; background: var(--painel); border: 0; color: #fff; width: 38px; height: 38px; border-radius: 10px; cursor: pointer; font-size: 1.3rem; }
+.gaveta h2 { padding-right: 3rem; font-size: 1.5rem; }
+.dados { display: grid; grid-template-columns: 130px 1fr; gap: .45rem 1rem; font-size: .93rem; margin-bottom: 1.2rem; }
+.dados dt { color: var(--suave); }
+.dados dd { margin: 0; word-break: break-word; }
+.fotos-produto { display: flex; gap: .6rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.fotos-produto .f { position: relative; width: 92px; height: 92px; border-radius: 10px; overflow: hidden; border: 1px solid var(--linha); }
+.fotos-produto .f img { width: 100%; height: 100%; object-fit: cover; }
+.fotos-produto .f button { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border-radius: 6px; border: 0; background: rgba(0,0,0,.75); color: #fff; cursor: pointer; }
+.fotos-produto .f .capa { position: absolute; bottom: 0; left: 0; right: 0; background: var(--vermelho); font-size: .7rem; text-align: center; font-weight: 700; }
+.fotos-produto .add { width: 92px; height: 92px; border-radius: 10px; border: 2px dashed var(--linha); display: grid; place-items: center; color: var(--suave); cursor: pointer; font-size: .8rem; text-align: center; }
+.fotos-produto .add:hover { border-color: var(--vermelho); color: #fff; }
+.acoes-gaveta { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1.2rem; }
+.copiar { display: flex; gap: .5rem; }
+.copiar input { font-size: .85rem; }
+.login { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+.login form { width: min(380px, 100%); }
+.login form > img { width: 220px; margin: 0 auto 1.5rem; }
+.toggle { display: flex; align-items: center; gap: .5rem; margin: 0; cursor: pointer; }

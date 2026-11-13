@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Finalizar compra | DFR 3D Impressão</title>
+</head>
+<body>
+<main id="conteudo" class="container">
+  <form id="form" class="layout-checkout" novalidate>
+    <div>
+      <h1 style="font-size:2rem;margin-top:.5rem">Finalizar compra</h1>
+      <div id="erro"></div>
+      <div id="faixa-login"></div>
+
+      <section class="caixa">
+        <h3><span class="num">1</span> Seus dados</h3>
+        <div class="campo"><label for="nome">Nome completo</label><input id="nome" autocomplete="name" required></div>
+        <div class="linha-campos">
+          <div class="campo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required></div>
+          <div class="campo"><label for="telefone">WhatsApp</label><input id="telefone" type="tel" autocomplete="tel" placeholder="(12) 99999-9999" required></div>
+        </div>
+        <div class="campo"><label for="cpf">CPF <span class="suave" id="cpf-ajuda">(obrigatório para envio)</span></label><input id="cpf" inputmode="numeric" placeholder="000.000.000-00"></div>
+      </section>
+
+      <section class="caixa">
+        <h3><span class="num">2</span> Entrega</h3>
+        <div class="linha-campos" style="--cols:3;align-items:end">
+          <div class="campo"><label for="cep">CEP</label><input id="cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000"></div>
+          <div class="campo"><button type="button" class="btn contorno bloco" id="calcular"><span>Calcular frete</span></button></div>
+          <div class="campo"><a class="suave" style="font-size:.85rem" href="https://buscacepinter.correios.com.br/app/endereco/index.php" target="_blank" rel="noopener">Não sei meu CEP</a></div>
+        </div>
+        <div class="opcoes-frete" id="opcoes"></div>
+        <div id="endereco" hidden style="margin-top:1.2rem">
+          <div class="linha-campos" style="--cols:3">
+            <div class="campo" style="grid-column:span 2"><label for="rua">Rua</label><input id="rua" autocomplete="address-line1"></div>
+            <div class="campo"><label for="numero">Número</label><input id="numero"></div>
+          </div>
+          <div class="linha-campos">
+            <div class="campo"><label for="complemento">Complemento</label><input id="complemento" autocomplete="address-line2"></div>
+            <div class="campo"><label for="bairro">Bairro</label><input id="bairro"></div>
+          </div>
+          <div class="linha-campos" style="--cols:3">
+            <div class="campo" style="grid-column:span 2"><label for="cidade">Cidade</label><input id="cidade" autocomplete="address-level2"></div>
+            <div class="campo"><label for="uf">UF</label><input id="uf" maxlength="2" autocomplete="address-level1"></div>
+          </div>
+        </div>
+        <div class="campo" style="margin-top:.6rem"><label for="obs">Observações <span class="suave">(opcional)</span></label><textarea id="obs" style="min-height:70px" placeholder="Ex.: é para presente, preferência de horário para retirada…"></textarea></div>
+      </section>
+
+      <section class="caixa" id="secao-pagamento" hidden>
+        <h3><span class="num">3</span> Pagamento</h3>
+        <div class="formas-pagamento" id="formas"></div>
+      </section>
+    </div>
+
+    <aside class="caixa resumo">
+      <h3>Seu pedido</h3>
+      <div class="mini-itens" id="itens"></div>
+      <div class="cupom"><label for="cupom" class="sr-only">Cupom</label><input id="cupom" placeholder="Cupom de desconto" autocomplete="off"><button type="button" class="btn contorno pequeno" id="aplicar"><span>Aplicar</span></button></div>
+      <div id="msg-cupom" style="font-size:.85rem"></div>
+      <div class="linha"><span>Subtotal</span><span id="subtotal"></span></div>
+      <div class="linha desconto" id="l-cupom" hidden><span id="t-cupom">Cupom</span><span id="v-cupom"></span></div>
+      <div class="linha desconto" id="l-pix" hidden><span>Desconto Pix</span><span id="v-pix"></span></div>
+      <div class="linha"><span>Entrega</span><span id="frete" class="suave">—</span></div>
+      <div class="linha total"><span>Total</span><span id="total"></span></div>
+      <label class="aceite"><input type="checkbox" id="aceite"> <span>Li e aceito a <a href="/politicas#trocas" target="_blank">política de trocas</a> e a <a href="/politicas#privacidade" target="_blank">política de privacidade</a>.</span></label>
+      <button class="btn bloco" id="pagar" style="margin-top:1.2rem"><span>Ir para o pagamento</span></button>
+      <p class="suave" style="font-size:.82rem;text-align:center;margin:.9rem 0 0" id="info-pagamento">Pagamento seguro pelo Mercado Pago.</p>
+    </aside>
+  </form>
+</main>
+<script>
+  const { esc, brl, carrinho, $ } = DFR;
+  if (!carrinho.ler().length) location.href = '/carrinho';
+  let opcoes = [], escolhida = null, cfg = {}, cupomAplicado = '', resumoAtual = null;
+  const forma = () => document.querySelector('input[name=forma]:checked')?.value || 'cartao';
+
+  const mascara = (el, fn) => el.addEventListener('input', () => { el.value = fn(el.value.replace(/\D/g, '')); });
+  mascara($('#cep'), (d) => d.slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2'));
+  mascara($('#cpf'), (d) => d.slice(0, 11).replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'));
+  mascara($('#telefone'), (d) => d.slice(0, 11).replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{4})$/, '$1-$2'));
+
+  let salvos = {};
+  try { salvos = JSON.parse(DFR.armazenar.ler('dfr3d_cliente') || '{}'); } catch {}
+  for (const k of ['nome', 'email', 'telefone', 'cpf', 'cep', 'rua', 'numero', 'complemento', 'bairro', 'cidade', 'uf']) if (salvos[k]) $('#' + k).value = salvos[k];
+
+  // Conta Google: preenche com os dados salvos
+  DFR.conta().then((c) => {
+    if (c.logado) {
+      const k = c.cliente, e = k.endereco;
+      $('#faixa-login').innerHTML = `<div class="faixa-login logado"><span>✔ Comprando como <strong>${esc(k.nome)}</strong> (${esc(k.email)})</span><a href="/conta" class="suave" style="font-size:.88rem">Minha conta</a></div>`;
+      const pares = { nome: k.nome, email: k.email, telefone: k.telefone, cpf: k.cpf, cep: e.cep, rua: e.endereco, numero: e.numero, complemento: e.complemento, bairro: e.bairro, cidade: e.cidade, uf: e.uf };
+      for (const [id, v] of Object.entries(pares)) if (v) $('#' + id).value = v;
+      $('#email').readOnly = true;
+      $('#telefone').dispatchEvent(new Event('input')); $('#cpf').dispatchEvent(new Event('input'));
+      if ((e.cep || '').length === 8) { $('#cep').value = e.cep.replace(/^(\d{5})(\d)/, '$1-$2'); calcular(); }
+    } else if (c.google) {
+      $('#faixa-login').innerHTML = `<div class="faixa-login"><span class="suave">Entre para preencher tudo com um clique e acompanhar seus pedidos.</span><a class="btn-google" style="padding:.55rem 1rem;font-size:.9rem" href="${DFR.urlLogin('/checkout')}"><span class="g" aria-hidden="true">G</span>Entrar com Google</a></div>`;
+    }
+  });
+
+  $('#itens').innerHTML = carrinho.ler().map((i) => `<div class="item-carrinho"><div class="mini">${DFR.fotoOuPlaceholder(i.imagem, i.nome)}</div>
+    <div style="font-size:.9rem">${esc(i.nome)}${DFR.detalhesItem(i) ? `<div class="suave">${DFR.detalhesItem(i)}</div>` : ''}<div class="suave">${i.quantidade}× ${brl(i.preco_cents)}</div></div>
+    <span style="font-size:.9rem">${brl(i.preco_cents * i.quantidade)}</span></div>`).join('');
+
+  // Valores calculados pelo servidor (preço, cupom e desconto Pix)
+  let pedidoResumo = 0;
+  async function atualizarResumo() {
+    const n = ++pedidoResumo;
+    try {
+      const r = await DFR.api('/api/carrinho/resumo', { method: 'POST', body: { itens: carrinho.paraApi(), cupom: cupomAplicado, forma_pagamento: forma(), frete_cents: escolhida?.preco_cents || 0 } });
+      if (n !== pedidoResumo) return;
+      resumoAtual = r;
+      $('#subtotal').textContent = brl(r.subtotal_cents);
+      $('#l-cupom').hidden = !r.cupom;
+      if (r.cupom) { $('#t-cupom').textContent = `Cupom ${r.cupom.codigo}`; $('#v-cupom').textContent = r.desconto_cupom_cents ? `- ${brl(r.desconto_cupom_cents)}` : r.cupom.descricao; }
+      $('#l-pix').hidden = !r.desconto_pix_cents; $('#v-pix').textContent = `- ${brl(r.desconto_pix_cents)}`;
+      $('#frete').textContent = escolhida ? (r.frete_cents ? brl(r.frete_cents) : 'Grátis') : '—';
+      $('#total').textContent = brl(r.total_cents);
+      if (cupomAplicado) $('#msg-cupom').innerHTML = r.erro_cupom ? `<span style="color:#fca5a5">${esc(r.erro_cupom)}</span>` : `<span style="color:#4ade80">✔ ${esc(r.cupom.descricao)}</span>`;
+      if (r.erro_cupom) cupomAplicado = '';
+      desenharFormas(r);
+    } catch (e) { erro(e.message); }
+  }
+
+  function desenharFormas(r) {
+    if (!cfg.pagamento_online) return;
+    $('#secao-pagamento').hidden = false;
+    const atual = forma();
+    const base = r.subtotal_cents - r.desconto_cupom_cents;
+    const pixValor = base - Math.round(base * cfg.pix_desconto / 100) + r.frete_cents;
+    const cartaoValor = base + r.frete_cents;
+    $('#formas').innerHTML = `
+      <label class="opcao-frete"><input type="radio" name="forma" value="pix" ${atual === 'pix' ? 'checked' : ''}>
+        <span class="nome"><strong>Pix${cfg.pix_desconto ? `<span class="selo-desconto">${cfg.pix_desconto}% OFF</span>` : ''}</strong><small>Aprovação na hora</small></span><span class="valor">${brl(pixValor)}</span></label>
+      <label class="opcao-frete"><input type="radio" name="forma" value="cartao" ${atual !== 'pix' ? 'checked' : ''}>
+        <span class="nome"><strong>Cartão de crédito ou boleto</strong><small>Em até 12x pelo Mercado Pago</small></span><span class="valor">${brl(cartaoValor)}</span></label>`;
+  }
+  $('#formas').addEventListener('change', atualizarResumo);
+
+  function erro(msg) {
+    $('#erro').innerHTML = msg ? `<div class="aviso erro" role="alert">${esc(msg)}</div>` : '';
+    if (msg) $('#erro').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function calcular() {
+    const cep = $('#cep').value.replace(/\D/g, '');
+    if (cep.length !== 8) return erro('Digite um CEP com 8 números.');
+    erro('');
+    $('#opcoes').innerHTML = '<p class="suave">Calculando…</p>';
+    try {
+      const r = await DFR.api('/api/frete', { method: 'POST', body: { cep, itens: carrinho.paraApi() } });
+      opcoes = r.opcoes;
+      if (!opcoes.length) { $('#opcoes').innerHTML = '<p class="aviso">Não encontramos opções de entrega para esse CEP. Fale com a gente no WhatsApp.</p>'; return; }
+      const anterior = escolhida?.id;
+      $('#opcoes').innerHTML = opcoes.map((o, i) => `
+        <label class="opcao-frete"><input type="radio" name="entrega" value="${esc(o.id)}" ${(anterior ? o.id === anterior : i === 0) ? 'checked' : ''}>
+          <span class="nome"><strong>${esc(o.nome)}</strong><small>${o.tipo === 'retirada' ? `${esc(o.detalhe || '')} · pronto em até ${o.prazo_dias || 1} dia(s) útil(eis)` : `Chega em até ${o.prazo_dias} dia(s) útil(eis), já contando a produção`}</small></span>
+          <span class="valor">${o.preco_cents ? brl(o.preco_cents) : 'Grátis'}</span></label>`).join('');
+      escolher(document.querySelector('input[name=entrega]:checked')?.value || opcoes[0].id);
+      fetch(`https://viacep.com.br/ws/${cep}/json/`).then((r) => r.json()).then((d) => {
+        if (d.erro) return;
+        if (!$('#rua').value) $('#rua').value = d.logradouro || '';
+        if (!$('#bairro').value) $('#bairro').value = d.bairro || '';
+        $('#cidade').value = d.localidade || $('#cidade').value;
+        $('#uf').value = d.uf || $('#uf').value;
+      }).catch(() => {});
+    } catch (e) { $('#opcoes').innerHTML = ''; erro(e.message); }
+  }
+
+  function escolher(id) {
+    escolhida = opcoes.find((o) => o.id === id) || null;
+    const envio = escolhida?.tipo === 'envio';
+    $('#endereco').hidden = !envio;
+    $('#cpf-ajuda').textContent = envio ? '(obrigatório para envio — vai na declaração de conteúdo)' : '(opcional na retirada)';
+    atualizarResumo();
+  }
+
+  $('#calcular').addEventListener('click', calcular);
+  $('#cep').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); calcular(); } });
+  $('#cep').addEventListener('input', () => { if ($('#cep').value.replace(/\D/g, '').length === 8) calcular(); });
+  $('#opcoes').addEventListener('change', (e) => escolher(e.target.value));
+  const aplicar = () => { cupomAplicado = $('#cupom').value.trim().toUpperCase(); if (!cupomAplicado) $('#msg-cupom').innerHTML = ''; atualizarResumo(); };
+  $('#aplicar').addEventListener('click', aplicar);
+  $('#cupom').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aplicar(); } });
+
+  $('#form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!escolhida) return erro('Calcule o frete e escolha como quer receber.');
+    if (!$('#aceite').checked) return erro('Para continuar, aceite a política de trocas e de privacidade.');
+    const v = (id) => $('#' + id).value.trim();
+    const dados = Object.fromEntries(['nome', 'email', 'telefone', 'cpf', 'cep', 'rua', 'numero', 'complemento', 'bairro', 'cidade', 'uf'].map((k) => [k, v(k)]));
+    DFR.armazenar.gravar('dfr3d_cliente', JSON.stringify(dados));
+    const botao = $('#pagar');
+    botao.disabled = true; botao.firstElementChild.textContent = 'Criando pedido…';
+    try {
+      const r = await DFR.api('/api/pedidos', { method: 'POST', body: {
+        cliente: { nome: dados.nome, email: dados.email, telefone: dados.telefone, cpf: dados.cpf },
+        endereco: { cep: dados.cep, endereco: dados.rua, numero: dados.numero, complemento: dados.complemento, bairro: dados.bairro, cidade: dados.cidade, uf: dados.uf },
+        itens: carrinho.paraApi(), entrega_id: escolhida.id, observacoes: v('obs'), cupom: cupomAplicado, forma_pagamento: forma(), aceite: true,
+      } });
+      DFR.armazenar.gravar('dfr3d_ultimo_pedido', JSON.stringify({ codigo: r.codigo, total: r.total_cents, itens: carrinho.ler() }));
+      carrinho.limpar();
+      location.href = r.link_pagamento || `/pedido/${r.codigo}`;
+    } catch (err) {
+      erro(err.message);
+      botao.disabled = false; botao.firstElementChild.textContent = 'Ir para o pagamento';
+    }
+  });
+
+  DFR.config().then((c) => {
+    cfg = c;
+    if (!c.pagamento_online) $('#info-pagamento').textContent = 'Depois de confirmar, combinamos o pagamento por Pix pelo WhatsApp.';
+    atualizarResumo();
+    DFR.track('begin_checkout', { value: carrinho.subtotal() / 100, items: carrinho.ler().map((i) => ({ item_id: i.produto_id, item_name: i.nome, price: i.preco_cents / 100, quantity: i.quantidade })) });
+  });
+  if ($('#cep').value.replace(/\D/g, '').length === 8) calcular();
+</script>
+</body>
+</html>

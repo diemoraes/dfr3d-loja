@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Blog | DFR 3D Impressão</title>
+  <meta name="description" content="Dicas de impressão 3D, ideias de presentes, bastidores da oficina e novidades da DFR 3D Impressão.">
+</head>
+<body>
+<main id="conteudo" class="container secao">
+  <span class="etiqueta">Blog DFR 3D</span>
+  <h1>Dicas, ideias e <span class="vermelho">bastidores</span></h1>
+  <p class="suave" style="max-width:40rem;margin-top:0">Tudo sobre impressão 3D: como escolher o material, ideias de presentes, cuidados com as peças e o que está saindo da nossa oficina.</p>
+  <div class="filtros" id="filtros" style="margin:1.5rem 0"></div>
+  <div class="grade-blog" id="posts"><p class="carregando">Carregando…</p></div>
+</main>
+<script>
+  const { esc } = DFR;
+  let categoria = new URLSearchParams(location.search).get('categoria') || '';
+  const cardPost = (p) => `<a class="card-post" href="/blog/${esc(p.slug)}"><div class="capa">${DFR.fotoOuPlaceholder(p.capa, p.titulo)}</div>
+    <div class="info">${p.categoria ? `<span class="etiqueta" style="margin:0">${esc(p.categoria)}</span>` : ''}<h3>${esc(p.titulo)}</h3><p>${esc(p.resumo)}</p>
+    <span class="meta">${p.publicado_em ? new Date(p.publicado_em + 'T12:00').toLocaleDateString('pt-BR') : ''} · ${p.leitura_min} min de leitura</span></div></a>`;
+  async function carregar() {
+    const r = await DFR.api('/api/blog' + (categoria ? '?categoria=' + encodeURIComponent(categoria) : ''));
+    document.getElementById('filtros').innerHTML = r.categorias.length ? ['', ...r.categorias].map((c) => `<button class="chip ${c === categoria ? 'ativo' : ''}" data-cat="${esc(c)}">${c ? esc(c) : 'Todos'}</button>`).join('') : '';
+    document.getElementById('posts').innerHTML = r.posts.length ? r.posts.map(cardPost).join('') : '<p class="suave">Em breve, os primeiros posts por aqui!</p>';
+  }
+  document.getElementById('filtros').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (!b) return; categoria = b.dataset.cat; history.replaceState(null, '', '/blog' + (categoria ? '?categoria=' + encodeURIComponent(categoria) : '')); carregar(); });
+  carregar();
+</script>
+</body>
+</html>

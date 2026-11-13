@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>DFR 3D Impressão | Peças, presentes e decoração impressos em 3D</title>
+  <meta name="description" content="Loja de impressão 3D em São José dos Campos: decoração, presentes, personalizados e peças sob encomenda. Pix com desconto, até 12x e envio para todo o Brasil.">
+</head>
+<body>
+<main id="conteudo">
+  <section class="hero">
+    <div class="container">
+      <div>
+        <span class="etiqueta" id="h-etiqueta">Impressão 3D em São José dos Campos</span>
+        <h1 id="h-titulo">Sua ideia,<br><span class="vermelho">camada por camada.</span></h1>
+        <p class="lead" id="h-sub">Peças, presentes e decoração impressos em 3D com acabamento caprichado.</p>
+        <div class="acoes">
+          <a class="btn" href="/produtos"><span>Ver produtos</span></a>
+          <a class="btn contorno" href="/encomenda"><span>Fazer encomenda</span></a>
+        </div>
+      </div>
+      <div id="h-destaque"><img class="logo-hero" src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="900" height="365"></div>
+    </div>
+  </section>
+
+  <div class="container"><div class="selos-home" id="selos"></div></div>
+
+  <div id="secoes"><p class="carregando container">Carregando produtos…</p></div>
+
+  <section class="secao">
+    <div class="container">
+      <div class="caixa" style="display:flex;gap:2rem;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:2.2rem;background:linear-gradient(115deg,var(--grafite) 0 60%,rgba(225,10,20,.18) 60%)">
+        <div style="max-width:40rem">
+          <h2 style="margin-bottom:.3rem">Não achou o que procura?</h2>
+          <p class="suave" style="margin:0">Peça de reposição, chaveiro personalizado, miniatura, suporte, brinde para empresa… Conte o que precisa, anexe o arquivo ou uma foto e receba o orçamento.</p>
+        </div>
+        <a class="btn claro" href="/encomenda"><span>Pedir orçamento</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao" id="secao-blog" hidden>
+    <div class="container">
+      <div class="secao-topo"><h2>Do <span class="vermelho">blog</span></h2><a class="btn contorno pequeno" href="/blog"><span>Ver todos</span></a></div>
+      <div class="grade-blog" id="home-posts"></div>
+    </div>
+  </section>
+
+  <section class="secao" id="secao-faq" hidden>
+    <div class="container" style="max-width:860px">
+      <h2>Perguntas <span class="vermelho">frequentes</span></h2>
+      <div class="faq" id="faq"></div>
+    </div>
+  </section>
+</main>
+<script>
+  const { esc, brl } = DFR;
+  const ICONES = [
+    '<svg viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4M12 11v10"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M4 20h16M6 16l9-9 3 3-9 9H6z"/><path d="m13 6 2-2 3 3-2 2"/></svg>',
+  ];
+  const secao = (titulo, destaque, lista, link) => lista.length ? `<section class="secao"><div class="container">
+    <div class="secao-topo"><h2>${titulo} <span class="vermelho">${destaque}</span></h2>${link ? `<a class="btn contorno pequeno" href="${link}"><span>Ver todos</span></a>` : ''}</div>
+    <div class="carrossel">${lista.map(DFR.cardProduto).join('')}</div></div></section>` : '';
+
+  Promise.all([DFR.api('/api/site'), DFR.api('/api/vitrine')]).then(([site, v]) => {
+    const h = site.home;
+    const [l1, l2] = h.titulo.split('|');
+    document.getElementById('h-etiqueta').textContent = h.etiqueta;
+    document.getElementById('h-titulo').innerHTML = `${esc(l1)}${l2 ? `<br><span class="vermelho">${esc(l2)}</span>` : ''}`;
+    document.getElementById('h-sub').textContent = h.subtitulo;
+    document.getElementById('selos').innerHTML = h.selos.map((s, i) => `<div><span class="ic">${ICONES[i % ICONES.length]}</span><div><strong>${esc(s.titulo)}</strong><span>${esc(s.texto)}</span></div></div>`).join('');
+
+    const todos = [...v.destaques, ...v.promocoes, ...v.mais_vendidos, ...v.novidades];
+    const banner = todos.find((p) => p.slug === h.produto_destaque);
+    if (banner) {
+      document.getElementById('h-destaque').innerHTML = `<a class="hero-produto" href="/produto/${esc(banner.slug)}">
+        <div class="foto">${DFR.fotoOuPlaceholder(banner.imagens[0], banner.nome)}${banner.promo_pct ? `<span class="selo promo">-${banner.promo_pct}%</span>` : '<span class="selo">Destaque</span>'}</div>
+        <div class="info"><div><span class="suave" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em">${esc(banner.categoria)}</span><strong>${esc(banner.nome)}</strong></div>
+        <span class="preco">${banner.promo_pct ? `<s class="suave" style="font-size:.9rem;font-weight:400;display:block;text-align:right">${brl(banner.preco_original_cents)}</s>` : ''}${brl(banner.preco_cents)}</span></div></a>`;
+    }
+
+    const html = secao('Destaques', 'da oficina', v.destaques, '/produtos')
+      + secao('Promoções', 'imperdíveis', v.promocoes, '/produtos?promo=1')
+      + secao('Mais', 'vendidos', v.mais_vendidos, '/produtos?ordem=vendidos')
+      + (v.mais_vendidos.length ? '' : secao('Chegou', 'agora', v.novidades, '/produtos?ordem=novos'));
+    document.getElementById('secoes').innerHTML = html || `<div class="container secao"><p class="suave">Novos produtos chegando em breve. Enquanto isso, faça sua <a href="/encomenda">encomenda</a>!</p></div>`;
+
+    if (v.posts.length) {
+      document.getElementById('secao-blog').hidden = false;
+      document.getElementById('home-posts').innerHTML = v.posts.map(cardPost).join('');
+    }
+    if (site.faq.length) {
+      document.getElementById('secao-faq').hidden = false;
+      document.getElementById('faq').innerHTML = site.faq.map((f) => `<details><summary>${esc(f.p)}</summary><p>${esc(f.r)}</p></details>`).join('');
+    }
+  }).catch((e) => { document.getElementById('secoes').innerHTML = `<p class="aviso erro container">${esc(e.message)}</p>`; });
+
+  function cardPost(p) {
+    return `<a class="card-post" href="/blog/${esc(p.slug)}"><div class="capa">${DFR.fotoOuPlaceholder(p.capa, p.titulo)}</div>
+      <div class="info">${p.categoria ? `<span class="etiqueta" style="margin:0">${esc(p.categoria)}</span>` : ''}<h3>${esc(p.titulo)}</h3><p>${esc(p.resumo)}</p>
+      <span class="meta">${p.publicado_em ? new Date(p.publicado_em + 'T12:00').toLocaleDateString('pt-BR') : ''} · ${p.leitura_min} min de leitura</span></div></a>`;
+  }
+</script>
+</body>
+</html>

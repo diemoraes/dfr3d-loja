@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Impressão 3D sob encomenda | DFR 3D Impressão</title>
+  <meta name="description" content="Mande seu arquivo STL, uma foto ou sua ideia e receba o orçamento da DFR 3D Impressão.">
+</head>
+<body>
+<main id="conteudo" class="container">
+  <div class="encomenda-grid">
+    <div>
+      <span class="etiqueta">Sob encomenda</span>
+      <h1>Tem uma ideia?<br><span class="vermelho">A gente imprime.</span></h1>
+      <p class="suave" style="font-size:1.08rem">Peças de reposição, protótipos, chaveiros e brindes personalizados, miniaturas, suportes, decoração… em PLA, PETG e outros materiais, em várias cores.</p>
+      <ol class="passos">
+        <li><strong>Conte o que você precisa</strong><span>Mande o arquivo (STL, 3MF, OBJ), um link do Printables/Thingiverse, fotos ou só a descrição.</span></li>
+        <li><strong>Receba o orçamento</strong><span>Respondemos pelo WhatsApp ou e-mail com valor e prazo.</span></li>
+        <li><strong>Pague com segurança</strong><span>Enviamos um link do Mercado Pago: Pix ou cartão em até 12x.</span></li>
+        <li><strong>Receba ou retire</strong><span>Enviamos para todo o Brasil, ou você retira com a gente.</span></li>
+      </ol>
+    </div>
+
+    <form id="form" class="caixa" novalidate>
+      <div id="msg"></div>
+      <div id="campos">
+        <h2 style="font-size:1.6rem">Pedir orçamento</h2>
+        <div class="campo"><label for="nome">Nome</label><input id="nome" autocomplete="name" required></div>
+        <div class="linha-campos">
+          <div class="campo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required></div>
+          <div class="campo"><label for="telefone">WhatsApp</label><input id="telefone" type="tel" autocomplete="tel" placeholder="(12) 99999-9999" required></div>
+        </div>
+        <div class="campo"><label for="descricao">O que você quer imprimir?</label>
+          <textarea id="descricao" required placeholder="Ex.: suporte de headset para mesa, cor preta com detalhe vermelho, uns 20 cm de altura…"></textarea></div>
+        <div class="linha-campos" style="--cols:3">
+          <div class="campo"><label for="quantidade">Quantidade</label><input id="quantidade" type="number" min="1" value="1"></div>
+          <div class="campo"><label for="cor">Cor(es)</label><input id="cor" placeholder="Ex.: preto"></div>
+          <div class="campo"><label for="prazo">Precisa até</label><input id="prazo" placeholder="Ex.: 20/12"></div>
+        </div>
+        <div class="campo"><label for="link">Link de referência <span class="suave">(opcional)</span></label><input id="link" type="url" placeholder="https://www.printables.com/…"></div>
+        <div class="campo">
+          <label>Arquivos <span class="suave">(opcional: STL, 3MF, OBJ, STEP, fotos ou PDF — até 5 arquivos de 20 MB)</span></label>
+          <div class="dropzone" id="drop" tabindex="0" role="button">Arraste os arquivos aqui ou <u>clique para escolher</u></div>
+          <input type="file" id="arquivos" multiple hidden accept=".stl,.3mf,.obj,.step,.stp,.jpg,.jpeg,.png,.webp,.pdf">
+          <ul class="lista-arquivos" id="lista"></ul>
+        </div>
+        <label class="aceite" style="margin-bottom:1rem"><input type="checkbox" id="aceite"> <span>Concordo com a <a href="/politicas#privacidade" target="_blank">política de privacidade</a> (usamos seus dados só para responder este orçamento).</span></label>
+        <button class="btn bloco" id="enviar"><span>Enviar pedido de orçamento</span></button>
+      </div>
+    </form>
+  </div>
+</main>
+<script>
+  const { esc, $ } = DFR;
+  let arquivos = [];
+  const ref = new URLSearchParams(location.search).get('ref');
+  if (ref) $('#descricao').value = `Quero o produto "${ref}" com a seguinte alteração: `;
+  $('#telefone').addEventListener('input', (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{4})$/, '$1-$2'); });
+
+  function listar() {
+    $('#lista').innerHTML = arquivos.map((f, i) => `<li><span>${esc(f.name)} <span class="suave">(${(f.size / 1048576).toFixed(1)} MB)</span></span><button type="button" class="link-btn" data-i="${i}">remover</button></li>`).join('');
+  }
+  function adicionar(lista) {
+    for (const f of lista) {
+      if (arquivos.length >= 5) { DFR.toast('Máximo de 5 arquivos.'); break; }
+      if (f.size > 20 * 1048576) { DFR.toast(`${esc(f.name)} passa de 20 MB.`); continue; }
+      if (arquivos.reduce((s, a) => s + a.size, 0) + f.size > 45 * 1048576) { DFR.toast('Os arquivos juntos passam de 45 MB. Mande o resto pelo WhatsApp.'); break; }
+      arquivos.push(f);
+    }
+    listar();
+  }
+  const drop = $('#drop');
+  drop.addEventListener('click', () => $('#arquivos').click());
+  drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#arquivos').click(); } });
+  $('#arquivos').addEventListener('change', (e) => { adicionar(e.target.files); e.target.value = ''; });
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('arrastando'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('arrastando'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('arrastando'); adicionar(e.dataTransfer.files); });
+  $('#lista').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { arquivos.splice(Number(b.dataset.i), 1); listar(); } });
+
+  DFR.conta().then((c) => { if (!c.logado) return; $('#nome').value ||= c.cliente.nome; $('#email').value ||= c.cliente.email; $('#telefone').value ||= c.cliente.telefone; });
+
+  const lerBase64 = (f) => new Promise((ok, falha) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = falha; r.readAsDataURL(f); });
+
+  $('#form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const botao = $('#enviar'); botao.disabled = true; botao.firstElementChild.textContent = 'Enviando…';
+    $('#msg').innerHTML = '';
+    try {
+      const anexos = await Promise.all(arquivos.map(async (f) => ({ nome: f.name, dados: await lerBase64(f) })));
+      const r = await DFR.api('/api/encomendas', { method: 'POST', body: {
+        nome: $('#nome').value, email: $('#email').value, telefone: $('#telefone').value, descricao: $('#descricao').value,
+        quantidade: $('#quantidade').value, cor: $('#cor').value, prazo_desejado: $('#prazo').value, link_referencia: $('#link').value, arquivos: anexos, aceite: $('#aceite').checked,
+      } });
+      const cfg = await DFR.config();
+      $('#campos').hidden = true;
+      DFR.track('generate_lead', { value: 0 });
+      $('#msg').innerHTML = `<h2 style="font-size:1.6rem">Pedido recebido! ✔</h2>
+        <p>Seu número é <strong>${esc(r.codigo)}</strong>. Vamos analisar e responder com o orçamento em breve.</p>
+        ${cfg.whatsapp ? `<a class="btn verde" href="https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(`Olá! Acabei de pedir o orçamento ${r.codigo} no site.`)}" target="_blank" rel="noopener"><span>Avisar no WhatsApp</span></a>` : ''}`;
+      $('#form').scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+      $('#msg').innerHTML = `<div class="aviso erro" role="alert">${esc(err.message)}</div>`;
+      botao.disabled = false; botao.firstElementChild.textContent = 'Enviar pedido de orçamento';
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <link rel="icon" href="/img/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/img/icone-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/app.js"></script>
+  <title>Produtos | DFR 3D Impressão</title>
+  <meta name="description" content="Todos os produtos impressos em 3D da DFR 3D Impressão: decoração, presentes, personalizados, geek e utilidades.">
+</head>
+<body>
+<main id="conteudo" class="container secao">
+  <div class="secao-topo" style="align-items:center">
+    <div><h1 style="margin:0" id="titulo">Produtos</h1><span class="suave" id="contagem"></span></div>
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <label class="toggle" style="margin:0"><input type="checkbox" id="so-promo"> Só promoções</label>
+      <label for="ordem" class="sr-only">Ordenar</label>
+      <select id="ordem" style="width:auto">
+        <option value="relevancia">Mais relevantes</option>
+        <option value="vendidos">Mais vendidos</option>
+        <option value="menor">Menor preço</option>
+        <option value="maior">Maior preço</option>
+        <option value="novos">Novidades</option>
+        <option value="promo">Maior desconto</option>
+      </select>
+    </div>
+  </div>
+  <div class="filtros" id="filtros" style="margin-bottom:1.6rem"></div>
+  <div class="grade" id="lista"><p class="carregando">Carregando…</p></div>
+</main>
+<script>
+  const { esc } = DFR;
+  const p = new URLSearchParams(location.search);
+  const estado = { categoria: p.get('categoria') || '', busca: p.get('busca') || '', ordem: p.get('ordem') || 'relevancia', promo: p.get('promo') === '1' };
+  document.getElementById('ordem').value = estado.ordem;
+  document.getElementById('so-promo').checked = estado.promo;
+
+  async function carregar() {
+    const q = new URLSearchParams();
+    if (estado.categoria) q.set('categoria', estado.categoria);
+    if (estado.busca) q.set('busca', estado.busca);
+    if (estado.ordem !== 'relevancia') q.set('ordem', estado.ordem);
+    if (estado.promo) q.set('promo', '1');
+    history.replaceState(null, '', '/produtos' + (q.toString() ? '?' + q : ''));
+    document.getElementById('titulo').textContent = estado.busca ? `Resultados para “${estado.busca}”` : estado.promo && !estado.categoria ? 'Promoções' : estado.categoria || 'Produtos';
+    document.title = `${document.getElementById('titulo').textContent} | DFR 3D Impressão`;
+    try {
+      const { produtos, categorias, total } = await DFR.api('/api/produtos?' + q);
+      document.getElementById('contagem').textContent = `${total} produto${total === 1 ? '' : 's'}`;
+      document.getElementById('filtros').innerHTML = [
+        estado.busca ? `<button class="chip ativo" data-limpar-busca>✕ ${esc(estado.busca)}</button>` : '',
+        ...(categorias.length ? ['', ...categorias].map((c) => `<button class="chip ${c === estado.categoria ? 'ativo' : ''}" data-cat="${esc(c)}">${c ? esc(c) : 'Todas as categorias'}</button>`) : []),
+      ].join('');
+      document.getElementById('lista').innerHTML = produtos.length ? produtos.map(DFR.cardProduto).join('')
+        : `<div class="vazio" style="grid-column:1/-1"><p class="suave">Nenhum produto encontrado${estado.busca ? ` para “${esc(estado.busca)}”` : ''}.</p><p class="suave">A gente pode imprimir sob medida!</p><a class="btn" href="/encomenda?ref=${encodeURIComponent(estado.busca)}"><span>Pedir sob encomenda</span></a></div>`;
+    } catch (e) {
+      document.getElementById('lista').innerHTML = `<p class="aviso erro">${esc(e.message)}</p>`;
+    }
+  }
+  document.getElementById('filtros').addEventListener('click', (e) => {
+    if (e.target.closest('[data-limpar-busca]')) { estado.busca = ''; document.getElementById('campo-busca').value = ''; return carregar(); }
+    const b = e.target.closest('[data-cat]'); if (!b) return;
+    estado.categoria = b.dataset.cat; carregar();
+  });
+  document.getElementById('ordem').addEventListener('change', (e) => { estado.ordem = e.target.value; carregar(); });
+  document.getElementById('so-promo').addEventListener('change', (e) => { estado.promo = e.target.checked; carregar(); });
+  carregar();
+</script>
+</body>
+</html>
