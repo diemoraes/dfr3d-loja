@@ -2,7 +2,7 @@
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { config } from '../config.js';
-import { db, gerarCodigo, produtoPublico, registrarHistorico, atualizarStatusPedido, lerJson, lerAjuste, salvarAjuste, STATUS_PEDIDO, STATUS_ENCOMENDA } from '../db.js';
+import { db, ehMysql, dataHoraLocal, gerarCodigo, produtoPublico, registrarHistorico, atualizarStatusPedido, lerJson, lerAjuste, salvarAjuste, STATUS_PEDIDO, STATUS_ENCOMENDA } from '../db.js';
 import { sendJson, readJson, HttpError, limpar, soDigitos, exigir, slugify, serveFile, redirect } from '../http.js';
 import { login, logoutCookie, estaLogado, exigirAdmin } from '../auth.js';
 import { emitir } from '../eventos.js';
@@ -106,7 +106,7 @@ export function rotasAdmin(r) {
     exigirAdmin(req);
     const porStatus = Object.fromEntries(db.prepare('SELECT status, COUNT(*) n FROM pedidos GROUP BY status').all().map((x) => [x.status, x.n]));
     const vendasMes = db.prepare(`SELECT COALESCE(SUM(total_cents),0) total, COUNT(*) n FROM pedidos
-      WHERE status NOT IN ('aguardando_pagamento','cancelado') AND criado_em >= date('now','localtime','start of month')`).get();
+      WHERE status NOT IN ('aguardando_pagamento','cancelado') AND criado_em >= ?`).get(`${dataHoraLocal().slice(0, 8)}01 00:00:00`);
     const encomendasNovas = db.prepare("SELECT COUNT(*) n FROM encomendas WHERE status = 'nova'").get().n;
     const avaliacoesPendentes = db.prepare('SELECT COUNT(*) n FROM avaliacoes WHERE aprovada = 0').get().n;
     const perguntasPendentes = db.prepare("SELECT COUNT(*) n FROM perguntas WHERE resposta = ''").get().n;
@@ -369,7 +369,7 @@ export function rotasAdmin(r) {
       analytics: { ga: Boolean(config.analytics.ga), pixel: Boolean(config.analytics.metaPixel) },
       ml: { configurado: ML.mlConfigurado(), conectado: ML.mlConectado(), conta, webhook: `${config.baseUrl}/api/webhooks/mercadolivre`, redirect: `${config.baseUrl}/api/admin/ml/callback` },
       backups: listarBackups(), ultimo_backup: lerAjuste('ultimo_backup'),
-      expira_horas: config.pedidoExpiraHoras,
+      expira_horas: config.pedidoExpiraHoras, banco: ehMysql ? 'MySQL' : 'SQLite (arquivo)',
       google: Boolean(config.google.clientId && config.google.clientSecret), google_redirect: `${config.baseUrl}/api/conta/google/callback`,
     });
   });
@@ -391,7 +391,7 @@ export function rotasAdmin(r) {
   r.get('/api/admin/backup/:arquivo', (req, res, { params }) => {
     exigirAdmin(req);
     const nome = path.basename(params.arquivo);
-    exigir(/^loja-[\d-]+\.db$/.test(nome), 'Arquivo inválido.');
+    exigir(/^loja-[\d-]+\.(db|json\.gz)$/.test(nome), 'Arquivo inválido.');
     if (!serveFile(req, res, config.backupDir, nome, { cache: 'private, no-store', download: true })) throw new HttpError(404, 'Backup não encontrado.');
   });
 

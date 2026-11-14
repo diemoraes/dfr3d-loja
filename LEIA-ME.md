@@ -24,6 +24,25 @@ Loja virtual em Node.js com vitrine, carrinho, Mercado Pago (Pix com desconto, c
 | 12 | **Backup diário** do banco (guarda 14 dias). Dá para baixar no painel e, se quiser, receber por e-mail. | `BACKUP_*` |
 | 13 | **Estoque sincronizado com o Mercado Livre**: venda no site atualiza o anúncio; venda no ML baixa o estoque no site. | `ML_*` + painel → Integrações |
 
+### Novo: banco de dados MySQL
+
+A loja grava tudo (produtos, pedidos, clientes, cupons, blog, perguntas, avaliações e configurações) no MySQL
+da Hostinger quando as variáveis abaixo existem no app Node.js (Variáveis de ambiente):
+
+| Variável | Valor |
+|---|---|
+| DB_HOST | 127.0.0.1 (se não conectar, a loja tenta localhost sozinha) |
+| DB_PORT | 3306 |
+| DB_NAME | nome do banco (ex.: u639111317_dfr) |
+| DB_USER | usuário do banco |
+| DB_PASSWORD | senha do banco (só na Hostinger, nunca no GitHub) |
+
+- Na primeira vez, as tabelas são criadas sozinhas e, se existir o arquivo SQLite antigo, tudo é copiado para o MySQL
+  (o arquivo vira `loja.db.migrado-para-mysql`, como cópia de segurança).
+- O log mostra `Banco: MySQL ...` e `registros copiados`. Em Integrações aparece "Banco de dados: MySQL".
+- O backup diário passa a ser `loja-AAAA-MM-DD.json.gz` (todas as tabelas). Dá para ver as tabelas no phpMyAdmin.
+- Sem essas variáveis, continua usando o arquivo SQLite como antes.
+
 ### Novo: todas as configurações no painel (⚙️ Configurações)
 Chaves, tokens e dados da loja agora são editados em **/admin → ⚙️ Configurações**. Não precisa mais mexer nas variáveis da Hostinger.
 - As seções são: Loja e contato, Mercado Pago, Frete e retirada, Remetente da etiqueta, E-mails, Aviso no celular, Login com Google, Captcha, Medição de visitas, Mercado Livre e Backup.

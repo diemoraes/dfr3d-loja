@@ -2,7 +2,7 @@
 // Permissões do token: cart-read, cart-write, shipping-calculate, shipping-checkout,
 // shipping-generate, shipping-print, shipping-tracking, orders-read
 import { config } from './config.js';
-import { db, lerJson, atualizarStatusPedido } from './db.js';
+import { db, lerJson, atualizarStatusPedido, dataHoraLocal } from './db.js';
 import { apiMelhorEnvio } from './frete.js';
 import { HttpError } from './http.js';
 
@@ -114,7 +114,7 @@ export async function buscarRastreio(pedido) {
 export async function atualizarRastreios() {
   if (!config.melhorEnvio.token) return 0;
   const lista = db.prepare(`SELECT * FROM pedidos WHERE me_order_id != '' AND status IN ('pago','em_producao','enviado')
-    AND (rastreio_verificado = '' OR rastreio_verificado <= datetime('now','localtime','-3 hours')) LIMIT 30`).all();
+    AND (rastreio_verificado = '' OR rastreio_verificado <= ?) LIMIT 30`).all(dataHoraLocal(-3 * 3600_000));
   for (const p of lista) await buscarRastreio(p).catch((e) => console.error('Rastreio', p.codigo, e.message));
   return lista.length;
 }

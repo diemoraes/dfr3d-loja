@@ -855,6 +855,7 @@
         ${item(i.celular, 'Aviso no celular de pedido pago', i.celular ? [i.telegram && 'Telegram', i.whatsapp_callmebot && 'WhatsApp (CallMeBot)'].filter(Boolean).join(' + ') : 'Preencha TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID ou CALLMEBOT_TELEFONE/CALLMEBOT_APIKEY.')}
         ${item(i.analytics.ga || i.analytics.pixel, 'Medição de visitas', [i.analytics.ga && 'Google Analytics', i.analytics.pixel && 'Meta Pixel'].filter(Boolean).join(' + ') || 'Opcional: preencha GA_ID e/ou META_PIXEL_ID.')}
         ${item(i.google, 'Login de clientes com Google', i.google ? 'Ativo: clientes entram em /conta e acompanham pedidos e rastreio.' : `Preencha GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET. URI de redirecionamento: <code>${esc(i.google_redirect)}</code>`)}
+        ${item(true, 'Banco de dados', esc(i.banco))}
         ${item(true, 'Pedidos não pagos', `Cancelados automaticamente após ${i.expira_horas}h, devolvendo o estoque.`)}
         <div class="acoes-gaveta"><button class="btn contorno pequeno" id="testar"><span>Enviar aviso de teste</span></button></div>
       </div>

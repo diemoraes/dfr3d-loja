@@ -12,5 +12,8 @@
     "start": "node --no-warnings server.js",
     "dev": "node --no-warnings --watch server.js",
     "seed": "node --no-warnings scripts/seed.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
   }
 }

@@ -1,14 +1,24 @@
-// Banco de dados SQLite (embutido no Node.js 22.5+, sem instalar nada)
-import { DatabaseSync } from 'node:sqlite';
+// Banco de dados: MySQL (Hostinger) ou SQLite (arquivo local), escolhido em banco.js
+import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { config, aplicarAjustes } from './config.js';
 import { emitir } from './eventos.js';
 import { HttpError } from './http.js';
+import { abrirBanco } from './banco.js';
+import { TABELAS_MYSQL, ORDEM_TABELAS } from './esquema-mysql.js';
 
-export const db = new DatabaseSync(config.dbFile);
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+export const db = abrirBanco();
+export const ehMysql = db.tipo === 'mysql';
 
-db.exec(`
+/** Data/hora de São Paulo no formato 'AAAA-MM-DD HH:MM:SS' (igual nos dois bancos). deslocamentoMs negativo = passado. */
+export function dataHoraLocal(deslocamentoMs = 0) {
+  return new Date(Date.now() + deslocamentoMs).toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).replace('T', ' ');
+}
+
+if (ehMysql) {
+  for (const t of TABELAS_MYSQL) db.exec(t);
+} else db.exec(`
 CREATE TABLE IF NOT EXISTS produtos (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   slug          TEXT UNIQUE NOT NULL,
@@ -179,7 +189,9 @@ CREATE INDEX IF NOT EXISTS idx_avaliacoes_produto ON avaliacoes(produto_id, apro
 `);
 
 // ---------- Migrações: novas colunas em bancos já existentes ----------
+// (no MySQL as tabelas já são criadas completas em esquema-mysql.js)
 function adicionarColuna(tabela, coluna, definicao) {
+  if (ehMysql) return;
   const existe = db.prepare(`PRAGMA table_info(${tabela})`).all().some((c) => c.name === coluna);
   if (!existe) db.exec(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${definicao}`);
 }
@@ -200,7 +212,39 @@ adicionarColuna('pedidos', 'cliente_id', 'INTEGER');
 adicionarColuna('pedidos', 'rastreio_status', "TEXT DEFAULT ''");
 adicionarColuna('pedidos', 'rastreio_verificado', "TEXT DEFAULT ''");
 adicionarColuna('encomendas', 'cliente_id', 'INTEGER');
-db.exec('CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(cliente_id); CREATE INDEX IF NOT EXISTS idx_pedidos_email ON pedidos(cliente_email);');
+if (!ehMysql) db.exec('CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(cliente_id); CREATE INDEX IF NOT EXISTS idx_pedidos_email ON pedidos(cliente_email);');
+
+// ---------- Primeira vez no MySQL: copia os dados do SQLite antigo (se existir) ----------
+if (ehMysql && fs.existsSync(config.dbFile)) {
+  const vazio = ['produtos', 'pedidos', 'ajustes'].every((t) => db.prepare(`SELECT COUNT(*) n FROM ${t}`).get().n === 0);
+  if (vazio) {
+    const antigo = new DatabaseSync(config.dbFile, { readOnly: true });
+    const existentes = new Set(antigo.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((t) => t.name));
+    let total = 0;
+    db.exec('SET FOREIGN_KEY_CHECKS = 0');
+    db.exec('START TRANSACTION');
+    try {
+      for (const tabela of ORDEM_TABELAS.filter((t) => existentes.has(t))) {
+        const destino = new Set(db.prepare(`SHOW COLUMNS FROM ${tabela}`).all().map((c) => c.Field));
+        for (const linha of antigo.prepare(`SELECT * FROM ${tabela}`).all()) {
+          const cols = Object.keys(linha).filter((c) => destino.has(c));
+          db.prepare(`INSERT INTO ${tabela} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...cols.map((c) => linha[c]));
+          total++;
+        }
+      }
+      db.exec('COMMIT');
+      console.log(`✔ ${total} registros copiados do SQLite (${config.dbFile}) para o MySQL.`);
+      fs.renameSync(config.dbFile, `${config.dbFile}.migrado-para-mysql`);
+    } catch (e) {
+      db.exec('ROLLBACK');
+      console.error('✖ Falha ao copiar os dados do SQLite para o MySQL:', e.message);
+      throw e;
+    } finally {
+      db.exec('SET FOREIGN_KEY_CHECKS = 1');
+      antigo.close();
+    }
+  }
+}
 
 // ---------- Configurações salvas pelo painel ----------
 {
@@ -261,7 +305,7 @@ export const aplicarPromo = (cents, pct) => (pct ? Math.round(cents * (100 - pct
 /** Quantidade vendida por produto (pedidos pagos dos últimos 180 dias). */
 export function ranking() {
   const r = {};
-  for (const p of db.prepare("SELECT itens FROM pedidos WHERE status NOT IN ('aguardando_pagamento','cancelado') AND criado_em >= datetime('now','localtime','-180 days')").all()) {
+  for (const p of db.prepare("SELECT itens FROM pedidos WHERE status NOT IN ('aguardando_pagamento','cancelado') AND criado_em >= ?").all(dataHoraLocal(-180 * 86400_000))) {
     for (const i of lerJson(p.itens)) if (i.produto_id) r[i.produto_id] = (r[i.produto_id] || 0) + i.quantidade;
   }
   return r;

@@ -1,15 +1,17 @@
 // Tarefas automáticas: cancelar pedidos não pagos e fazer backup diário
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
+import { ORDEM_TABELAS } from './esquema-mysql.js';
 import { config } from './config.js';
-import { db, atualizarStatusPedido, lerAjuste, salvarAjuste } from './db.js';
+import { db, ehMysql, dataHoraLocal, atualizarStatusPedido, lerAjuste, salvarAjuste } from './db.js';
 import { enviarEmail, emailAtivo } from './notificacoes.js';
 import { atualizarRastreios } from './etiqueta.js';
 
 /** Cancela pedidos aguardando pagamento há mais de PEDIDO_EXPIRA_HORAS e devolve o estoque. */
 export function expirarPedidos() {
   const vencidos = db.prepare(`SELECT * FROM pedidos WHERE status = 'aguardando_pagamento'
-    AND criado_em <= datetime('now','localtime', ?)`).all(`-${config.pedidoExpiraHoras} hours`);
+    AND criado_em <= ?`).all(dataHoraLocal(-config.pedidoExpiraHoras * 3600_000));
   for (const p of vencidos) {
     try { atualizarStatusPedido(p, 'cancelado', `Pagamento não recebido em ${config.pedidoExpiraHoras}h (cancelado automaticamente)`); }
     catch (e) { console.error('Expirar pedido', p.codigo, e.message); }
@@ -23,16 +25,23 @@ const hojeSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America
 /** Cópia consistente do banco (VACUUM INTO) + lista das fotos. Mantém os últimos N dias. */
 export async function fazerBackup({ forcar = false } = {}) {
   const dia = hojeSP();
-  const arquivo = path.join(config.backupDir, `loja-${dia}.db`);
+  const arquivo = path.join(config.backupDir, `loja-${dia}.${ehMysql ? 'json.gz' : 'db'}`);
   if (!forcar && fs.existsSync(arquivo)) return arquivo;
   fs.rmSync(arquivo, { force: true });
-  db.exec(`VACUUM INTO '${arquivo.replace(/'/g, "''")}'`);
+  if (ehMysql) {
+    // MySQL: exporta todas as tabelas em JSON compactado (a Hostinger também faz backups do banco)
+    const dados = { gerado_em: new Date().toISOString(), banco: 'mysql', tabelas: {} };
+    for (const t of ORDEM_TABELAS) dados.tabelas[t] = db.prepare(`SELECT * FROM ${t}`).all();
+    fs.writeFileSync(arquivo, zlib.gzipSync(JSON.stringify(dados)));
+  } else {
+    db.exec(`VACUUM INTO '${arquivo.replace(/'/g, "''")}'`);
+  }
 
   // Apaga backups antigos
   const limite = Date.now() - config.backup.manterDias * 86400_000;
   for (const f of fs.readdirSync(config.backupDir)) {
     const full = path.join(config.backupDir, f);
-    if (/^loja-\d{4}-\d{2}-\d{2}\.db$/.test(f) && fs.statSync(full).mtimeMs < limite) fs.rmSync(full, { force: true });
+    if (/^loja-\d{4}-\d{2}-\d{2}\.(db|json\.gz)$/.test(f) && fs.statSync(full).mtimeMs < limite) fs.rmSync(full, { force: true });
   }
 
   if (config.backup.porEmail && emailAtivo() && lerAjuste('backup_email_dia') !== dia) {
@@ -50,7 +59,7 @@ export async function fazerBackup({ forcar = false } = {}) {
 }
 
 export function listarBackups() {
-  return fs.readdirSync(config.backupDir).filter((f) => /^loja-.*\.db$/.test(f)).sort().reverse()
+  return fs.readdirSync(config.backupDir).filter((f) => /^loja-.*\.(db|json\.gz)$/.test(f)).sort().reverse()
     .map((f) => ({ arquivo: f, tamanho: fs.statSync(path.join(config.backupDir, f)).size }));
 }
 
