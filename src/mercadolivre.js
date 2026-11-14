@@ -90,23 +90,27 @@ export async function processarNotificacao(corpo) {
   if (pedido.status !== 'paid') return;
   const processados = lerAjuste('ml_pedidos_processados', []);
   if (processados.includes(pedido.id)) return;
-  const alterados = [];
+  const alterados = [], vendidos = [];
   for (const item of pedido.order_items || []) {
     const p = db.prepare('SELECT * FROM produtos WHERE ml_item_id = ? AND estoque IS NOT NULL').get(item.item.id);
     if (!p) continue;
     db.prepare('UPDATE produtos SET estoque = MAX(estoque - ?, 0) WHERE id = ?').run(item.quantity, p.id);
     alterados.push(p.id);
+    vendidos.push({ nome: p.nome, quantidade: item.quantity, restante: Math.max(p.estoque - item.quantity, 0) });
   }
   salvarAjuste('ml_pedidos_processados', [pedido.id, ...processados].slice(0, 500));
   if (alterados.length) console.log(`Mercado Livre: venda ${pedido.id} baixou estoque de ${alterados.length} produto(s).`);
+  if (vendidos.length) emitir('ml:venda', { pedidoMl: pedido.id, itens: vendidos });
   emitir('estoque:alterado:ml', alterados);
 }
 
 // Venda/cancelamento no site → atualiza o anúncio
-eventos.on('estoque:alterado', async (ids) => {
+async function sincronizarAnuncios(ids) {
   if (!mlConectado()) return;
   for (const id of new Set(ids)) {
     const p = db.prepare('SELECT * FROM produtos WHERE id = ?').get(id);
     if (p?.ml_item_id) await enviarEstoque(p).catch((e) => console.error(`ML estoque ${p.ml_item_id}:`, e.message));
   }
-});
+}
+eventos.on('estoque:alterado', sincronizarAnuncios);   // venda/cancelamento no site
+eventos.on('estoque:sincronizar', sincronizarAnuncios); // ajuste de estoque no painel

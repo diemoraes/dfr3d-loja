@@ -5,6 +5,7 @@ import { db, lerJson, STATUS_PEDIDO, STATUS_ENCOMENDA } from './db.js';
 import { sendJson, readJson, redirect, parseCookies, HttpError, limpar, soDigitos, exigir } from './http.js';
 import { assinar, iguais } from './auth.js';
 import { buscarRastreio, STATUS_ENVIO } from './etiqueta.js';
+import { emitir } from './eventos.js';
 
 const COOKIE = 'dfr_cliente';
 const COOKIE_OAUTH = 'dfr_oauth';
@@ -133,6 +134,8 @@ export function rotasConta(r) {
         c = { id: Number(info.lastInsertRowid) };
         // Puxa telefone/endereço do último pedido feito com este e-mail
         const ultimo = db.prepare('SELECT * FROM pedidos WHERE cliente_email = ? ORDER BY id DESC LIMIT 1').get(email);
+        const anteriores = db.prepare('SELECT COUNT(*) n FROM pedidos WHERE cliente_email = ? COLLATE NOCASE').get(email).n;
+        emitir('cliente:novo', { nome, email, pedidosAnteriores: anteriores });
         if (ultimo) salvarDadosDoPedido(c.id, { telefone: ultimo.cliente_telefone, cpf: ultimo.cliente_cpf, cep: ultimo.cep, endereco: ultimo.endereco, numero: ultimo.numero, complemento: ultimo.complemento, bairro: ultimo.bairro, cidade: ultimo.cidade, uf: ultimo.uf });
       }
       db.prepare('UPDATE pedidos SET cliente_id = ? WHERE cliente_id IS NULL AND cliente_email = ? COLLATE NOCASE').run(c.id, email);

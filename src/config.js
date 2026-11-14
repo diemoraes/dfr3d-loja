@@ -80,7 +80,7 @@ export const config = {
     resendKey: env('RESEND_API_KEY'),
     brevoKey: env('BREVO_API_KEY'),
     remetente: env('EMAIL_REMETENTE'), // ex.: DFR 3D <pedidos@dfr3d.com.br>
-    admin: env('EMAIL_ADMIN', env('EMAIL_CONTATO')),
+    admin: env('EMAIL_ADMIN', 'difere.3d@gmail.com'), // recebe um e-mail a cada acontecimento do site
   },
   // Avisos no celular
   telegram: { token: env('TELEGRAM_BOT_TOKEN'), chatId: env('TELEGRAM_CHAT_ID') },

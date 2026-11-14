@@ -82,7 +82,8 @@ const buscarPedido = (id) => {
   return p;
 };
 
-function sincronizarML(ids) { if (ids.length) emitir('estoque:alterado', ids); }
+// Alteração feita no painel: só atualiza o anúncio do ML (não gera aviso de venda/estoque por e-mail)
+function sincronizarML(ids) { if (ids.length) emitir('estoque:sincronizar', ids); }
 
 export function rotasAdmin(r) {
   // Captcha do login: configuração e desafio (imagem nova a cada pedido)
@@ -93,7 +94,9 @@ export function rotasAdmin(r) {
   r.post('/api/admin/login', async (req, res) => {
     const b = await readJson(req);
     await exigirCaptcha(req, b);
-    sendJson(res, 200, { ok: true }, { 'Set-Cookie': login(req, b.senha) });
+    const cookie = login(req, b.senha);
+    emitir('admin:login', { ip: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress, navegador: String(req.headers['user-agent'] || '').slice(0, 160) });
+    sendJson(res, 200, { ok: true }, { 'Set-Cookie': cookie });
   });
   r.post('/api/admin/logout', (req, res) => sendJson(res, 200, { ok: true }, { 'Set-Cookie': logoutCookie() }));
   r.get('/api/admin/me', (req, res) => sendJson(res, 200, { logado: estaLogado(req), pagamento_online: mpAtivo(), etiqueta: etiquetaAtiva(), ml: ML.mlConectado() }));

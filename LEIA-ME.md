@@ -24,6 +24,27 @@ Loja virtual em Node.js com vitrine, carrinho, Mercado Pago (Pix com desconto, c
 | 12 | **Backup diário** do banco (guarda 14 dias). Dá para baixar no painel e, se quiser, receber por e-mail. | `BACKUP_*` |
 | 13 | **Estoque sincronizado com o Mercado Livre**: venda no site atualiza o anúncio; venda no ML baixa o estoque no site. | `ML_*` + painel → Integrações |
 
+### Novo: e-mail para a loja a cada acontecimento
+Tudo o que acontece no site gera um e-mail para **difere.3d@gmail.com** (variável `EMAIL_ADMIN`), com os detalhes e um botão para abrir no painel:
+
+| Acontecimento | E-mail |
+|---|---|
+| Pedido feito na loja | 🛒 Novo pedido (cliente, endereço, itens, cupom, observações) |
+| Pagamento aprovado | 💰 Pedido PAGO, com tudo para produzir |
+| Pagamento recusado (ex.: cartão sem limite) | ⚠️ Pagamento recusado, para você chamar o cliente |
+| Pedido cancelado (expirou ou estorno) | ❌ Pedido cancelado |
+| Postagem e entrega confirmadas pela transportadora | 📦 Postado / ✅ Entregue |
+| Mudança de status feita por você no painel | 🔄 ... (alterado por você) |
+| Pedido de orçamento (encomenda) | 🛠️ Nova encomenda |
+| Pergunta num produto | ❓ Pergunta, com link para responder |
+| Avaliação de cliente | ⭐ Nova avaliação, com link para aprovar |
+| Cliente criou conta com Google | 👤 Novo cliente |
+| Estoque com 2 ou menos / esgotado (por venda no site ou no ML) | 📉 Estoque baixo / 🚨 Esgotou |
+| Venda no Mercado Livre que baixou o estoque | 🟡 Venda no Mercado Livre |
+| Login no painel / 10 senhas erradas seguidas | 🔐 Acesso ao painel / 🚨 Tentativas de senha |
+
+> Os e-mails só saem com um serviço de envio configurado (`RESEND_API_KEY` ou `BREVO_API_KEY` + `EMAIL_REMETENTE`). Use o botão **Enviar aviso de teste** em painel → Integrações para conferir.
+
 ### Novo: captcha no login do painel
 - O login do painel (/admin) pede senha **e** um código de verificação, o que bloqueia robôs que tentam adivinhar a senha.
 - Sem configurar nada, a loja usa um captcha próprio: uma imagem com 5 letras distorcidas (o botão ↻ gera outra). Cada código vale uma vez e expira em 5 minutos.
@@ -171,6 +192,7 @@ src/catalogo.js          busca sem acento, filtros e ordenação
 src/blog.js              posts e conversão segura de Markdown
 src/routes/conteudo.js   blog, menu, página inicial e FAQ
 src/routes/perguntas.js  perguntas e respostas dos produtos
+src/avisos-dono.js       e-mail para a loja a cada acontecimento do site
 src/captcha.js           captcha do login (imagem própria ou Cloudflare Turnstile)
 src/routes/publico.js    API da loja
 src/routes/admin.js      API do painel

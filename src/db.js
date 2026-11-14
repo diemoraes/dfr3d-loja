@@ -366,7 +366,7 @@ export function atualizarStatusPedido(pedido, novoStatus, nota = '') {
     throw e;
   }
   const atualizado = db.prepare('SELECT * FROM pedidos WHERE id = ?').get(pedido.id);
-  emitir('pedido:status', { pedido: atualizado, anterior: pedido.status });
+  emitir('pedido:status', { pedido: atualizado, anterior: pedido.status, nota });
   if (alterados.length) emitir('estoque:alterado', alterados);
   return atualizado;
 }

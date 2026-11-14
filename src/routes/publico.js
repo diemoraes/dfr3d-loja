@@ -73,6 +73,9 @@ async function sincronizarPagamento(paymentId) {
     const nota = pedido.status === 'cancelado' ? 'Pago depois do prazo — pedido reaberto, confira o estoque' : `Mercado Pago: ${pag.payment_type_id || ''}`;
     return atualizarStatusPedido({ ...pedido, pagamento_status: pag.status }, 'pago', nota);
   }
+  if (pag.status === 'rejected' && pedido.status === 'aguardando_pagamento' && pedido.mp_payment_id !== String(pag.id)) {
+    emitir('pagamento:recusado', { pedido, status: pag.status, detalhe: pag.status_detail || '' });
+  }
   if (novo === 'cancelado' && ['aguardando_pagamento', 'pago'].includes(pedido.status)) {
     return atualizarStatusPedido(pedido, 'cancelado', `Mercado Pago: ${pag.status}`);
   }
@@ -264,7 +267,7 @@ export function rotasPublicas(r) {
     db.prepare('INSERT INTO avaliacoes (produto_id, pedido_id, nome, nota, comentario, foto) VALUES (?,?,?,?,?,?)')
       .run(produtoId, pedido.id, pedido.cliente_nome, nota, limpar(b.comentario, 1500), foto);
     const prod = db.prepare('SELECT nome FROM produtos WHERE id = ?').get(produtoId);
-    emitir('avaliacao:criada', { nome: pedido.cliente_nome, nota, produto: prod?.nome || '' });
+    emitir('avaliacao:criada', { nome: pedido.cliente_nome, nota, produto: prod?.nome || '', comentario: limpar(b.comentario, 1500), pedido: pedido.codigo });
     sendJson(res, 201, { ok: true });
   });
 

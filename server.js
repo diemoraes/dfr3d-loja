@@ -6,6 +6,7 @@ import { config, ROOT } from './src/config.js';
 import './src/db.js';
 import './src/notificacoes.js';   // e-mails e avisos no celular (escutam os eventos)
 import './src/mercadolivre.js';   // sincronização de estoque com o ML
+import './src/avisos-dono.js';    // e-mail para a loja a cada acontecimento no site
 import { Router, HttpError, sendJson, serveFile } from './src/http.js';
 import { rotasPublicas } from './src/routes/publico.js';
 import { rotasAdmin } from './src/routes/admin.js';

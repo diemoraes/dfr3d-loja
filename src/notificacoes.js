@@ -102,7 +102,7 @@ const MENSAGENS_CLIENTE = {
     `<p>Oi, ${primeiroNome(p.cliente_nome)}. O pedido <b>${p.codigo}</b> foi cancelado${p.pagamento_status ? '' : ' porque o pagamento não foi concluído a tempo'}. Se quiser, é só fazer um novo pedido na loja ou chamar a gente no WhatsApp.</p>`],
 };
 
-// ---------- Eventos ----------
+// ---------- Eventos (e-mails para o CLIENTE e alerta no celular; os e-mails para a loja ficam em avisos-dono.js) ----------
 eventos.on('pedido:criado', async (p) => {
   const pago = p.status !== 'aguardando_pagamento';
   await Promise.allSettled([
@@ -110,10 +110,6 @@ eventos.on('pedido:criado', async (p) => {
       para: p.cliente_email, assunto: `Recebemos seu pedido ${p.codigo}`,
       html: modelo('Pedido recebido!', `<p>Oi, ${primeiroNome(p.cliente_nome)}! Recebemos seu pedido <b>${p.codigo}</b>.${pago ? '' : ' Assim que o pagamento for confirmado, começamos a produção.'}</p>${tabelaItens(p)}`,
         { texto: !pago && p.link_pagamento ? 'Pagar agora' : 'Acompanhar pedido', url: !pago && p.link_pagamento ? p.link_pagamento : linkPedido(p) }),
-    }),
-    enviarEmail({
-      para: config.email.admin, assunto: `🛒 Novo pedido ${p.codigo} — ${brl(p.total_cents)} (aguardando pagamento)`,
-      html: modelo(`Novo pedido ${p.codigo}`, `<p><b>${esc(p.cliente_nome)}</b> · ${esc(p.cliente_telefone)} · ${esc(p.cliente_email)}</p>${tabelaItens(p)}`, { texto: 'Abrir painel', url: `${config.baseUrl}/admin#pedidos` }),
     }),
   ]).then((r) => r.filter((x) => x.status === 'rejected').forEach((x) => console.error(x.reason.message)));
 });
@@ -129,8 +125,6 @@ eventos.on('pedido:status', async ({ pedido: p, anterior }) => {
   if (p.status === 'pago') {
     const itens = lerJson(p.itens).map((i) => `• ${i.quantidade}x ${i.nome}${[i.variacao, i.cor, i.personalizacao && `"${i.personalizacao}"`].filter(Boolean).map((x) => ` / ${x}`).join('')}`).join('\n');
     tarefas.push(avisarCelular(`💰 PEDIDO PAGO ${p.codigo} — ${brl(p.total_cents)}\n${p.cliente_nome}\n${itens}\n${p.entrega_tipo === 'retirada' ? '📍 Retirada' : `📦 ${p.entrega_servico} → ${p.cidade}/${p.uf}`}\n${config.baseUrl}/admin#pedidos`));
-    tarefas.push(enviarEmail({ para: config.email.admin, assunto: `💰 Pedido ${p.codigo} PAGO — ${brl(p.total_cents)}`,
-      html: modelo(`Pedido ${p.codigo} pago`, `<p><b>${esc(p.cliente_nome)}</b> · ${esc(p.cliente_telefone)}</p>${tabelaItens(p)}`, { texto: 'Abrir painel', url: `${config.baseUrl}/admin#pedidos` }) }));
   }
   const r = await Promise.allSettled(tarefas);
   r.filter((x) => x.status === 'rejected').forEach((x) => console.error(x.reason.message));
@@ -139,8 +133,6 @@ eventos.on('pedido:status', async ({ pedido: p, anterior }) => {
 eventos.on('encomenda:criada', async (e) => {
   const r = await Promise.allSettled([
     avisarCelular(`🛠️ NOVA ENCOMENDA ${e.codigo}\n${e.nome} · ${e.telefone}\n${e.descricao.slice(0, 200)}\nQtd: ${e.quantidade}\n${config.baseUrl}/admin#encomendas`),
-    enviarEmail({ para: config.email.admin, assunto: `🛠️ Nova encomenda ${e.codigo} — ${e.nome}`,
-      html: modelo(`Encomenda ${e.codigo}`, `<p><b>${esc(e.nome)}</b> · ${esc(e.telefone)} · ${esc(e.email)}</p><p style="white-space:pre-line">${esc(e.descricao)}</p><p>Quantidade: ${e.quantidade}${e.cor ? ` · Cor: ${esc(e.cor)}` : ''}</p>`, { texto: 'Ver no painel', url: `${config.baseUrl}/admin#encomendas` }) }),
     enviarEmail({ para: e.email, assunto: `Recebemos seu pedido de orçamento ${e.codigo}`,
       html: modelo('Orçamento solicitado!', `<p>Oi, ${primeiroNome(e.nome)}! Recebemos seu pedido de orçamento <b>${e.codigo}</b>. Vamos analisar e responder pelo WhatsApp ou por e-mail com valor e prazo.</p><p style="white-space:pre-line;color:#52525b">${esc(e.descricao)}</p>`) }),
   ]);
@@ -154,8 +146,6 @@ eventos.on('avaliacao:criada', async ({ nome, nota, produto }) => {
 eventos.on('pergunta:criada', async ({ nome, email, pergunta, produto }) => {
   const r = await Promise.allSettled([
     avisarCelular(`❓ NOVA PERGUNTA em "${produto.nome}"\n${nome}: ${pergunta.slice(0, 300)}\nResponder: ${config.baseUrl}/admin#perguntas`),
-    enviarEmail({ para: config.email.admin, assunto: `❓ Pergunta sobre ${produto.nome}`,
-      html: modelo('Nova pergunta', `<p><b>${esc(nome)}</b> (${esc(email)}) perguntou sobre <a href="${config.baseUrl}/produto/${esc(produto.slug)}" style="color:#e10a14">${esc(produto.nome)}</a>:</p><blockquote style="border-left:4px solid #e10a14;margin:12px 0;padding:4px 12px;color:#3f3f46">${esc(pergunta)}</blockquote>`, { texto: 'Responder no painel', url: `${config.baseUrl}/admin#perguntas` }) }),
   ]);
   r.filter((x) => x.status === 'rejected').forEach((x) => console.error(x.reason.message));
 });
@@ -167,4 +157,4 @@ eventos.on('pergunta:respondida', async (q) => {
       { texto: 'Ver o produto', url: `${config.baseUrl}/produto/${q.produto.slug}#perguntas` }) }).catch((e) => console.error(e.message));
 });
 
-export { modelo, STATUS_PEDIDO };
+export { modelo, tabelaItens, STATUS_PEDIDO };

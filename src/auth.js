@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import { config } from './config.js';
 import { parseCookies, HttpError } from './http.js';
+import { emitir } from './eventos.js';
 
 const COOKIE = 'dfr_admin';
 const DURACAO_MS = 1000 * 60 * 60 * 12; // 12 horas
@@ -22,6 +23,7 @@ function checarLimite(ip) {
   if (agora - t.desde > 15 * 60_000) { t.n = 0; t.desde = agora; }
   t.n++;
   tentativas.set(ip, t);
+  if (t.n === 10) emitir('admin:tentativas', { ip, tentativas: t.n });
   if (t.n > 10) throw new HttpError(429, 'Muitas tentativas. Aguarde 15 minutos.');
 }
 
