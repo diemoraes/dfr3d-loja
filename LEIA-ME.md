@@ -36,7 +36,7 @@ Chaves, tokens e dados da loja agora são editados em **/admin → ⚙️ Config
 - Na Hostinger ficam só `NODE_ENV`, `ADMIN_PASSWORD` (para o primeiro acesso) e `DATA_DIR`.
 
 ### Novo: e-mail para a loja a cada acontecimento
-Tudo o que acontece no site gera um e-mail para **difere.3d@gmail.com** (variável `EMAIL_ADMIN`), com os detalhes e um botão para abrir no painel:
+Tudo o que acontece no site gera um e-mail para **contato@dfr3d.com.br** (variável `EMAIL_ADMIN`), com os detalhes e um botão para abrir no painel:
 
 | Acontecimento | E-mail |
 |---|---|

@@ -60,8 +60,8 @@ export const SECOES = [
     link: 'https://app.brevo.com/settings/keys/api',
     descricao: 'Use o Brevo OU o Resend. Sem um deles, nenhum e-mail é enviado.',
     campos: [
-      { chave: 'EMAIL_ADMIN', rotulo: 'E-mail que recebe os avisos da loja', tipo: 'email', padrao: 'difere.3d@gmail.com', ajuda: 'Recebe um e-mail a cada pedido, pagamento, pergunta, encomenda etc.' },
-      { chave: 'EMAIL_REMETENTE', rotulo: 'Remetente', tipo: 'texto', placeholder: 'DFR 3D <difere.3d@gmail.com>', ajuda: 'Precisa estar verificado no Brevo/Resend.' },
+      { chave: 'EMAIL_ADMIN', rotulo: 'E-mail que recebe os avisos da loja', tipo: 'email', padrao: 'contato@dfr3d.com.br', ajuda: 'Recebe um e-mail a cada pedido, pagamento, pergunta, encomenda etc.' },
+      { chave: 'EMAIL_REMETENTE', rotulo: 'Remetente', tipo: 'texto', placeholder: 'DFR 3D <contato@dfr3d.com.br>', ajuda: 'Precisa estar verificado no Brevo/Resend.' },
       { chave: 'BREVO_API_KEY', rotulo: 'Chave de API do Brevo', tipo: 'segredo' },
       { chave: 'RESEND_API_KEY', rotulo: 'Chave de API do Resend', tipo: 'segredo' },
     ],

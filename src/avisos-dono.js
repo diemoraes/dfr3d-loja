@@ -1,4 +1,4 @@
-// E-mail para a LOJA (EMAIL_ADMIN, padrão difere.3d@gmail.com) a cada coisa que acontece no site:
+// E-mail para a LOJA (EMAIL_ADMIN, padrão contato@dfr3d.com.br) a cada coisa que acontece no site:
 // pedidos, pagamentos, cancelamentos, mudanças de status automáticas, encomendas, perguntas,
 // avaliações, novos clientes, estoque acabando, vendas no Mercado Livre e acessos ao painel.
 import { config } from './config.js';
