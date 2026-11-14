@@ -96,6 +96,7 @@
         <button data-aba="cupons">Cupons</button>
         <button data-aba="avaliacoes">Avaliações <span class="badge" id="b-avaliacoes" hidden></span></button>
         <button data-aba="integracoes">Integrações</button>
+        <button data-aba="configuracoes">⚙️ Configurações</button>
         <div class="rodape-menu"><a href="/" target="_blank">Ver loja ↗</a><a href="#" id="sair">Sair</a></div>
       </aside>
       <section class="conteudo" id="conteudo"></section></div>`;
@@ -107,7 +108,7 @@
   function irPara(nova) {
     aba = nova; location.hash = nova;
     document.querySelectorAll('aside [data-aba]').forEach((b) => b.classList.toggle('ativo', b.dataset.aba === nova));
-    ({ resumo, pedidos, encomendas, perguntas, produtos, clientes, blog, site, cupons, avaliacoes, integracoes }[nova] || resumo)().catch?.((e) => toast(e.message));
+    ({ resumo, pedidos, encomendas, perguntas, produtos, clientes, blog, site, cupons, avaliacoes, integracoes, configuracoes }[nova] || resumo)().catch?.((e) => toast(e.message));
   }
 
   async function atualizarBadges() {
@@ -750,6 +751,91 @@
     };
   }
 
+  // ---------- Configurações (tudo que antes ficava no .env) ----------
+  const TESTAVEIS = { pagamento: 'Testar conexão', frete: 'Testar conexão', email: 'Enviar e-mail de teste', celular: 'Enviar aviso de teste' };
+  async function configuracoes() {
+    const c = $('#conteudo');
+    const d = await api('/api/admin/config');
+    const subst = (t) => esc(t || '').replace(/\{BASE_URL\}/g, `<code>${esc(d.base_url)}</code>`);
+    const origem = (o) => (o === 'ambiente' ? '<span class="tag-origem" title="Valor vindo das variáveis da Hostinger. Ao salvar aqui, passa a valer o do painel.">da Hostinger</span>' : '');
+    const campoHtml = (f) => {
+      const id = `cfg-${f.chave}`;
+      const rot = `<label for="${id}">${esc(f.rotulo)} ${origem(f.origem)}</label>`;
+      const ajuda = f.ajuda ? `<div class="ajuda">${subst(f.ajuda)}</div>` : '';
+      if (f.tipo === 'sim_nao') return `<div class="campo"><label class="toggle" style="margin-top:1.6rem"><input type="checkbox" id="${id}" data-chave="${f.chave}" ${f.valor === 'true' ? 'checked' : ''}> ${esc(f.rotulo)} ${origem(f.origem)}</label>${ajuda}</div>`;
+      if (f.tipo === 'segredo') return `<div class="campo">${rot}
+        <div class="copiar"><input id="${id}" data-chave="${f.chave}" data-segredo="1" type="password" autocomplete="new-password" placeholder="${f.definido ? `Configurado (${esc(f.valor)}) — digite para trocar` : 'Não configurado'}">
+        ${f.definido ? `<button type="button" class="btn pequeno contorno" data-limpar="${f.chave}" title="Apagar este valor"><span>Apagar</span></button>` : ''}</div>${ajuda}</div>`;
+      const tipoInput = { email: 'email', url: 'url', numero: 'number' }[f.tipo] || 'text';
+      return `<div class="campo">${rot}<input id="${id}" data-chave="${f.chave}" type="${tipoInput}" value="${esc(f.valor)}" placeholder="${esc(f.placeholder || '')}" ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''} ${f.tipo === 'dinheiro' ? 'inputmode="decimal"' : ''}>${ajuda}</div>`;
+    };
+    const pronto = (s) => s.campos.filter((f) => f.tipo === 'segredo' || ['MP_ACCESS_TOKEN', 'CEP_ORIGEM', 'GOOGLE_CLIENT_ID', 'ML_CLIENT_ID', 'TELEGRAM_CHAT_ID'].includes(f.chave)).some((f) => f.definido);
+    c.innerHTML = `<div class="cabecalho"><h1>Configurações</h1><span class="suave">Tudo é salvo na hora, sem reiniciar a loja.</span></div>
+      <nav class="indice-cfg">${d.secoes.map((s) => `<a href="#sec-${s.id}" data-ir-sec="${s.id}">${s.icone} ${esc(s.titulo.split(' — ')[0])}</a>`).join('')}<a href="#sec-seguranca" data-ir-sec="seguranca">🔑 Senha</a></nav>
+      ${d.secoes.map((s) => `<form class="caixa secao-cfg" id="sec-${s.id}" data-secao="${s.id}">
+        <div class="cab-cfg"><h3 style="margin:0">${s.icone} ${esc(s.titulo)}</h3>
+          ${['loja', 'remetente', 'analytics', 'backup'].includes(s.id) ? '' : `<span class="status-pedido ${pronto(s) ? 'st-entregue' : 'st-nova'}">${pronto(s) ? 'Configurado' : 'Pendente'}</span>`}
+          ${s.link ? `<a href="${esc(s.link)}" target="_blank" rel="noopener" class="suave" style="margin-left:auto;font-size:.85rem">Abrir site do serviço ↗</a>` : ''}</div>
+        ${s.descricao ? `<p class="ajuda" style="margin:.4rem 0 0">${subst(s.descricao)}</p>` : ''}
+        <div class="linha-campos" style="margin-top:1rem">${s.campos.map(campoHtml).join('')}</div>
+        <div class="acoes-gaveta" style="margin-top:.4rem;align-items:center"><button class="btn pequeno"><span>Salvar</span></button>
+          ${TESTAVEIS[s.id] ? `<button type="button" class="btn pequeno contorno" data-testar="${s.id}"><span>${TESTAVEIS[s.id]}</span></button>` : ''}
+          <span class="resultado-cfg" id="res-${s.id}"></span></div>
+      </form>`).join('')}
+      <form class="caixa secao-cfg" id="sec-seguranca">
+        <h3 style="margin:0">🔑 Senha do painel</h3>
+        <p class="ajuda" style="margin:.4rem 0 1rem">${d.senha_trocada_em ? `Trocada em ${new Date(d.senha_trocada_em).toLocaleString('pt-BR')}.` : 'Você ainda usa a senha do primeiro acesso (ADMIN_PASSWORD da Hostinger). Troque por uma só sua.'} Trocar a senha desconecta outros aparelhos.</p>
+        <div class="linha-campos" style="--cols:3">
+          <div class="campo"><label for="s-atual">Senha atual</label><input id="s-atual" type="password" autocomplete="current-password"></div>
+          <div class="campo"><label for="s-nova">Nova senha</label><input id="s-nova" type="password" autocomplete="new-password" placeholder="10+ caracteres, letras e números"></div>
+          <div class="campo"><label for="s-conf">Repita a nova senha</label><input id="s-conf" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="acoes-gaveta" style="margin-top:.4rem;align-items:center"><button class="btn pequeno"><span>Trocar senha</span></button><span class="resultado-cfg" id="res-seguranca"></span></div>
+      </form>`;
+
+    const resultado = (id, ok, msg) => { const el = $('#res-' + id); el.className = `resultado-cfg ${ok ? 'ok' : 'erro'}`; el.textContent = msg; };
+    c.querySelector('.indice-cfg').onclick = (e) => { const a = e.target.closest('[data-ir-sec]'); if (!a) return; e.preventDefault(); $('#sec-' + a.dataset.irSec).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
+    c.querySelectorAll('form[data-secao]').forEach((form) => {
+      const secao = form.dataset.secao;
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const valores = {};
+        form.querySelectorAll('[data-chave]').forEach((el) => {
+          if (el.type === 'checkbox') valores[el.dataset.chave] = el.checked ? 'true' : 'false';
+          else if (el.dataset.segredo) { if (el.value.trim() || el.dataset.apagar) valores[el.dataset.chave] = el.value.trim(); }
+          else valores[el.dataset.chave] = el.value;
+        });
+        try {
+          const r = await api('/api/admin/config', { method: 'PUT', body: { valores } });
+          toast(r.alterados.length ? `Salvo: ${r.alterados.join(', ')}` : 'Nada mudou.');
+          await configuracoes(); $('#sec-' + secao).scrollIntoView({ block: 'start' });
+          resultado(secao, true, r.alterados.length ? '✔ Salvo' : '');
+        } catch (err) { resultado(secao, false, err.message); }
+      };
+      form.querySelectorAll('[data-limpar]').forEach((b) => b.onclick = () => {
+        if (!confirm('Apagar este valor? A integração deixa de funcionar até você preencher de novo.')) return;
+        const input = form.querySelector(`[data-chave="${b.dataset.limpar}"]`);
+        input.value = ''; input.dataset.apagar = '1'; form.requestSubmit();
+      });
+      form.querySelector('[data-testar]')?.addEventListener('click', async (e) => {
+        const b = e.currentTarget; b.disabled = true; resultado(secao, true, 'Testando…');
+        try { const r = await api(`/api/admin/config/testar/${secao}`, { method: 'POST' }); resultado(secao, r.ok, (r.ok ? '✔ ' : '✖ ') + r.msg); }
+        catch (err) { resultado(secao, false, err.message); }
+        b.disabled = false;
+      });
+    });
+
+    $('#sec-seguranca').onsubmit = async (e) => {
+      e.preventDefault();
+      if ($('#s-nova').value !== $('#s-conf').value) return resultado('seguranca', false, 'As senhas novas não são iguais.');
+      try {
+        await api('/api/admin/senha', { method: 'POST', body: { atual: $('#s-atual').value, nova: $('#s-nova').value } });
+        e.target.reset(); resultado('seguranca', true, '✔ Senha trocada! Use a nova no próximo login.');
+      } catch (err) { resultado('seguranca', false, err.message); }
+    };
+  }
+
   // ---------- Integrações ----------
   async function integracoes() {
     const c = $('#conteudo');
@@ -757,7 +843,8 @@
     const i = await api('/api/admin/integracoes');
     const item = (ok, titulo, detalhe) => `<div style="display:flex;gap:.8rem;padding:.8rem 0;border-bottom:1px solid var(--linha)"><span style="font-size:1.1rem">${ok ? '✅' : '⚪'}</span><div><strong>${titulo}</strong><div class="suave" style="font-size:.88rem">${detalhe}</div></div></div>`;
     const kb = (b) => `${(b / 1024).toFixed(0)} KB`;
-    c.innerHTML = `<div class="cabecalho"><h1>Integrações</h1></div>
+    c.innerHTML = `<div class="cabecalho"><h1>Integrações</h1><button class="btn pequeno" id="ir-config"><span>⚙️ Abrir Configurações</span></button></div>
+      <p class="ajuda" style="margin-top:-.8rem">Aqui você vê o que está funcionando. Para preencher chaves e dados, use <b>Configurações</b>.</p>
       ${avisoHash.get('ml') === 'ok' ? '<div class="aviso ok">Mercado Livre conectado!</div>' : avisoHash.get('ml') === 'erro' ? '<div class="aviso erro">Não foi possível conectar o Mercado Livre. Tente de novo.</div>' : ''}
       <div class="caixa"><h3>Situação</h3>
         ${item(true, 'Identificação da loja', `${esc(i.loja.nome)} · ${esc(i.loja.cidade)} (altere em LOJA_NOME / LOJA_CIDADE)`)}
@@ -784,6 +871,7 @@
         ${i.backups.slice(0, 7).map((b) => `<div><a href="/api/admin/backup/${encodeURIComponent(b.arquivo)}">${esc(b.arquivo)}</a> <span class="suave">(${kb(b.tamanho)})</span></div>`).join('')}
         <div class="acoes-gaveta"><button class="btn contorno pequeno" id="backup-agora"><span>Fazer backup agora</span></button></div>
       </div>`;
+    $('#ir-config').onclick = () => irPara('configuracoes');
     $('#testar').onclick = async () => { try { const r = await api('/api/admin/testar-avisos', { method: 'POST' }); toast(Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(' · ')); } catch (e) { toast(e.message); } };
     $('#backup-agora').onclick = async () => { try { await api('/api/admin/backup', { method: 'POST' }); toast('Backup feito.'); integracoes(); } catch (e) { toast(e.message); } };
     $('#ml-sync')?.addEventListener('click', async () => { try { const r = await api('/api/admin/ml/sincronizar', { method: 'POST' }); toast(`${r.enviados} anúncio(s) atualizado(s)${r.erros.length ? ` · ${r.erros.length} erro(s): ${r.erros[0]}` : ''}`); } catch (e) { toast(e.message); } });

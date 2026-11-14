@@ -24,6 +24,17 @@ Loja virtual em Node.js com vitrine, carrinho, Mercado Pago (Pix com desconto, c
 | 12 | **Backup diário** do banco (guarda 14 dias). Dá para baixar no painel e, se quiser, receber por e-mail. | `BACKUP_*` |
 | 13 | **Estoque sincronizado com o Mercado Livre**: venda no site atualiza o anúncio; venda no ML baixa o estoque no site. | `ML_*` + painel → Integrações |
 
+### Novo: todas as configurações no painel (⚙️ Configurações)
+Chaves, tokens e dados da loja agora são editados em **/admin → ⚙️ Configurações**. Não precisa mais mexer nas variáveis da Hostinger.
+- As seções são: Loja e contato, Mercado Pago, Frete e retirada, Remetente da etiqueta, E-mails, Aviso no celular, Login com Google, Captcha, Medição de visitas, Mercado Livre e Backup.
+- **Vale na hora**, sem reiniciar a loja.
+- Tem **botões de teste** para conferir na hora se a chave está certa: Mercado Pago, Melhor Envio, e-mail e celular.
+- Os **segredos ficam protegidos**: aparecem só como `••••••1234`. Para trocar, digite o novo valor; para remover, clique em **Apagar**.
+- O selo azul **"da Hostinger"** mostra os valores que ainda vêm das variáveis antigas. Ao salvar no painel, passa a valer o do painel.
+- **Senha do painel:** troque em Configurações → Senha. Ela fica guardada de forma criptografada e desconecta os outros aparelhos. Depois disso, a `ADMIN_PASSWORD` da Hostinger deixa de valer.
+- Cada alteração de configuração e cada troca de senha gera um e-mail de aviso para a loja.
+- Na Hostinger ficam só `NODE_ENV`, `ADMIN_PASSWORD` (para o primeiro acesso) e `DATA_DIR`.
+
 ### Novo: e-mail para a loja a cada acontecimento
 Tudo o que acontece no site gera um e-mail para **difere.3d@gmail.com** (variável `EMAIL_ADMIN`), com os detalhes e um botão para abrir no painel:
 
@@ -177,7 +188,9 @@ Preencha `GA_ID` (ex.: G-XXXXXXX) e/ou `META_PIXEL_ID`. Eles só são ativados p
 
 ```
 server.js                servidor, páginas e SEO
-src/config.js            variáveis de ambiente
+src/config.js            configuração (ambiente + valores salvos no painel)
+src/campos-config.js     lista de todos os campos da página Configurações
+src/routes/configuracoes.js  API da página Configurações e troca de senha
 src/db.js                banco SQLite, migrações, estoque e status
 src/precos.js            carrinho, variações, cupons e desconto Pix
 src/mercadopago.js       Checkout Pro e webhook

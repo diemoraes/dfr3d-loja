@@ -131,6 +131,16 @@ eventos.on('ml:venda', ({ pedidoMl, itens }) => {
 });
 
 // ---------- Segurança ----------
+eventos.on('config:alterada', ({ campos }) => {
+  avisar('⚙️ Configurações da loja alteradas', 'Configurações alteradas',
+    `<p>Foram alterados no painel:</p><ul>${campos.map((c) => `<li>${esc(c)}</li>`).join('')}</ul><p style="color:#71717a">Por segurança, os valores não aparecem neste e-mail.</p>`, painel('configuracoes'));
+});
+
+eventos.on('admin:senha', () => {
+  avisar('🔑 Senha do painel alterada', 'Senha do painel alterada',
+    '<p>A senha do painel administrativo foi trocada. As outras sessões abertas foram desconectadas.</p><p>Se <b>não foi você</b>, fale com o suporte da Hostinger e defina uma nova ADMIN_PASSWORD.</p>');
+});
+
 eventos.on('admin:login', ({ ip, navegador }) => {
   avisar('🔐 Acesso ao painel da loja', 'Alguém entrou no painel',
     `<p>Houve um login no painel administrativo.</p>${tabela([linha('IP', esc(ip)), linha('Navegador', esc(navegador))])}

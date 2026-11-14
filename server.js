@@ -13,6 +13,7 @@ import { rotasAdmin } from './src/routes/admin.js';
 import { rotasConta } from './src/clientes.js';
 import { rotasConteudo } from './src/routes/conteudo.js';
 import { rotasPerguntas } from './src/routes/perguntas.js';
+import { rotasConfiguracoes } from './src/routes/configuracoes.js';
 import { renderizar, sitemap, robots } from './src/seo.js';
 import { iniciarTarefas } from './src/tarefas.js';
 
@@ -23,6 +24,7 @@ rotasAdmin(router);
 rotasConta(router);
 rotasConteudo(router);
 rotasPerguntas(router);
+rotasConfiguracoes(router);
 
 // URLs amigáveis -> páginas HTML
 const PAGINAS = [

@@ -1,7 +1,12 @@
-// Configuração lida das variáveis de ambiente (arquivo .env ou painel da Hostinger)
+// Configuração da loja.
+// - O essencial para ligar o servidor vem do ambiente (.env ou Hostinger): DATA_DIR, PORT, NODE_ENV e a
+//   senha do primeiro acesso (ADMIN_PASSWORD).
+// - Todo o resto é editado em Painel → Configurações e fica salvo no banco. Se um campo nunca foi salvo
+//   no painel, vale a variável de ambiente de mesmo nome (compatível com instalações antigas).
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { CAMPOS } from './campos-config.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -11,107 +16,79 @@ if (fs.existsSync(envFile) && !process.env.DFR_SEM_ENV) {
 }
 
 const env = (k, d = '') => (process.env[k] ?? d).toString().trim();
-const reaisParaCentavos = (v) => (v === '' ? null : Math.round(parseFloat(v.replace(',', '.')) * 100));
-const digitos = (v) => v.replace(/\D/g, '');
+const reaisParaCentavos = (v) => {
+  if (v === '' || v === null || v === undefined) return null;
+  const s = String(v).trim();
+  const n = Math.round(parseFloat(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s) * 100);
+  return Number.isFinite(n) ? n : null;
+};
+const digitos = (v) => String(v ?? '').replace(/\D/g, '');
 
 const DATA_DIR = path.resolve(ROOT, env('DATA_DIR', './data'));
 
+/** Valores salvos pelo painel (carregados do banco em db.js). */
+let salvos = {};
+
+/** Valor efetivo de um campo: painel → variável de ambiente → padrão. */
+export function valorCampo(chave) {
+  if (Object.prototype.hasOwnProperty.call(salvos, chave)) return String(salvos[chave] ?? '').trim();
+  return env(chave, CAMPOS[chave]?.padrao ?? '');
+}
+/** De onde vem o valor atual: 'painel' | 'ambiente' | 'padrao' */
+export function origemCampo(chave) {
+  if (Object.prototype.hasOwnProperty.call(salvos, chave)) return 'painel';
+  if (process.env[chave] !== undefined && process.env[chave] !== '') return 'ambiente';
+  return 'padrao';
+}
+
 export const config = {
+  // --- Só pelo ambiente (precisam existir antes do banco abrir) ---
   port: Number(env('PORT', '3000')),
-  baseUrl: env('BASE_URL', 'http://localhost:3000').replace(/\/$/, ''),
   production: env('NODE_ENV') === 'production',
-  adminPassword: env('ADMIN_PASSWORD'),
-  sessionSecret: env('SESSION_SECRET'),
+  adminPassword: env('ADMIN_PASSWORD'),            // senha do primeiro acesso (depois troque no painel)
+  sessionSecret: env('SESSION_SECRET'),            // se vazio, é gerado e guardado no banco
   dataDir: DATA_DIR,
   uploadsDir: path.join(DATA_DIR, 'uploads'),
   backupDir: path.join(DATA_DIR, 'backups'),
   dbFile: path.join(DATA_DIR, 'loja.db'),
-
-  // Identificação obrigatória da loja (Decreto 7.962/2013)
-  loja: {
-    nome: env('LOJA_NOME', 'DFR 3D Impressão'),
-    responsavel: env('LOJA_RESPONSAVEL'),
-    cidade: env('LOJA_CIDADE', 'São José dos Campos - SP'), // única localização exibida no site
-    cidadeForo: env('LOJA_CIDADE', 'São José dos Campos - SP'),
-  },
-
-  mp: {
-    accessToken: env('MP_ACCESS_TOKEN'),
-    webhookSecret: env('MP_WEBHOOK_SECRET'),
-  },
-  pixDescontoPct: Math.min(Math.max(Number(env('PIX_DESCONTO', '5').replace(',', '.')) || 0, 0), 50),
-  pedidoExpiraHoras: Math.max(Number(env('PEDIDO_EXPIRA_HORAS', '72')) || 72, 1),
-
-  melhorEnvio: {
-    token: env('MELHOR_ENVIO_TOKEN'),
-    sandbox: env('MELHOR_ENVIO_SANDBOX') === 'true',
-    email: env('MELHOR_ENVIO_EMAIL', 'contato@dfr3d.com.br'),
-    servicos: env('MELHOR_ENVIO_SERVICOS').split(',').map((s) => s.trim()).filter(Boolean),
-  },
-  // Remetente impresso na etiqueta do Melhor Envio
-  remetente: {
-    nome: env('REMETENTE_NOME', env('LOJA_NOME', 'DFR 3D Impressão')),
-    telefone: digitos(env('REMETENTE_TELEFONE', env('WHATSAPP', '5512981020949'))),
-    email: env('REMETENTE_EMAIL', env('EMAIL_CONTATO')),
-    documento: digitos(env('REMETENTE_DOCUMENTO')), // só vai na etiqueta, nunca aparece no site
-    endereco: env('REMETENTE_RUA'),
-    numero: env('REMETENTE_NUMERO'),
-    complemento: env('REMETENTE_COMPLEMENTO'),
-    bairro: env('REMETENTE_BAIRRO'),
-    cidade: env('REMETENTE_CIDADE'),
-    uf: env('REMETENTE_UF'),
-  },
-  cepOrigem: digitos(env('CEP_ORIGEM')),
-  freteFixoCents: reaisParaCentavos(env('FRETE_FIXO')),
-  freteGratisAcimaCents: reaisParaCentavos(env('FRETE_GRATIS_ACIMA')),
-
-  retirada: {
-    ativa: env('RETIRADA_ATIVA', 'true') !== 'false',
-    endereco: env('RETIRADA_ENDERECO', 'Combinar pelo WhatsApp'),
-  },
-  contato: {
-    whatsapp: digitos(env('WHATSAPP', '5512981020949')),
-    email: env('EMAIL_CONTATO'),
-    instagram: env('INSTAGRAM').replace(/^@/, ''),
-  },
-
-  // E-mails transacionais: Resend (resend.com) ou Brevo (brevo.com)
-  email: {
-    resendKey: env('RESEND_API_KEY'),
-    brevoKey: env('BREVO_API_KEY'),
-    remetente: env('EMAIL_REMETENTE'), // ex.: DFR 3D <pedidos@dfr3d.com.br>
-    admin: env('EMAIL_ADMIN', 'difere.3d@gmail.com'), // recebe um e-mail a cada acontecimento do site
-  },
-  // Avisos no celular
-  telegram: { token: env('TELEGRAM_BOT_TOKEN'), chatId: env('TELEGRAM_CHAT_ID') },
-  callmebot: { telefone: digitos(env('CALLMEBOT_TELEFONE')), apikey: env('CALLMEBOT_APIKEY') },
-
-  analytics: { ga: env('GA_ID'), metaPixel: env('META_PIXEL_ID') },
-
-  backup: {
-    manterDias: Math.max(Number(env('BACKUP_MANTER_DIAS', '14')) || 14, 1),
-    porEmail: env('BACKUP_POR_EMAIL') === 'true',
-  },
-
-  // Captcha do login do painel (opcional: Cloudflare Turnstile; sem isso usa o captcha próprio)
-  turnstile: { siteKey: env('TURNSTILE_SITE_KEY'), secret: env('TURNSTILE_SECRET') },
-
-  // Login de clientes com Google (console.cloud.google.com → Credenciais → ID do cliente OAuth)
-  google: {
-    clientId: env('GOOGLE_CLIENT_ID'),
-    clientSecret: env('GOOGLE_CLIENT_SECRET'),
-  },
-
-  mercadoLivre: {
-    clientId: env('ML_CLIENT_ID'),
-    clientSecret: env('ML_CLIENT_SECRET'),
-  },
 };
 
-for (const d of [config.uploadsDir, config.backupDir]) fs.mkdirSync(d, { recursive: true });
-
-if (!config.adminPassword || !config.sessionSecret || config.sessionSecret.length < 32) {
-  const msg = 'Defina ADMIN_PASSWORD e SESSION_SECRET (32+ caracteres) no .env para usar o painel.';
-  if (config.production) throw new Error(msg);
-  console.warn('⚠ ' + msg);
+/** Recalcula tudo o que é editável no painel. Os módulos leem `config.x` na hora do uso, então vale na hora. */
+export function aplicarAjustes(novos = salvos) {
+  salvos = { ...novos };
+  const v = valorCampo;
+  Object.assign(config, {
+    baseUrl: (v('BASE_URL') || 'http://localhost:3000').replace(/\/+$/, ''),
+    loja: { nome: v('LOJA_NOME') || 'DFR 3D Impressão', responsavel: v('LOJA_RESPONSAVEL'), cidade: v('LOJA_CIDADE'), cidadeForo: v('LOJA_CIDADE') },
+    mp: { accessToken: v('MP_ACCESS_TOKEN'), webhookSecret: v('MP_WEBHOOK_SECRET') },
+    pixDescontoPct: Math.min(Math.max(Number(v('PIX_DESCONTO').replace(',', '.')) || 0, 0), 50),
+    pedidoExpiraHoras: Math.max(Number(v('PEDIDO_EXPIRA_HORAS')) || 72, 1),
+    melhorEnvio: {
+      token: v('MELHOR_ENVIO_TOKEN'), sandbox: v('MELHOR_ENVIO_SANDBOX') === 'true',
+      email: v('MELHOR_ENVIO_EMAIL') || v('EMAIL_CONTATO') || 'contato@dfr3d.com.br',
+      servicos: v('MELHOR_ENVIO_SERVICOS').split(',').map((s) => s.trim()).filter(Boolean),
+    },
+    remetente: {
+      nome: v('REMETENTE_NOME') || v('LOJA_NOME'), telefone: digitos(v('REMETENTE_TELEFONE') || v('WHATSAPP')),
+      email: v('REMETENTE_EMAIL') || v('EMAIL_CONTATO'), documento: digitos(v('REMETENTE_DOCUMENTO')),
+      endereco: v('REMETENTE_RUA'), numero: v('REMETENTE_NUMERO'), complemento: v('REMETENTE_COMPLEMENTO'),
+      bairro: v('REMETENTE_BAIRRO'), cidade: v('REMETENTE_CIDADE'), uf: v('REMETENTE_UF').toUpperCase(),
+    },
+    cepOrigem: digitos(v('CEP_ORIGEM')),
+    freteFixoCents: reaisParaCentavos(v('FRETE_FIXO')),
+    freteGratisAcimaCents: reaisParaCentavos(v('FRETE_GRATIS_ACIMA')),
+    retirada: { ativa: v('RETIRADA_ATIVA') !== 'false', endereco: v('RETIRADA_ENDERECO') || 'Combinar pelo WhatsApp' },
+    contato: { whatsapp: digitos(v('WHATSAPP')), email: v('EMAIL_CONTATO'), instagram: v('INSTAGRAM').replace(/^@/, '') },
+    email: { resendKey: v('RESEND_API_KEY'), brevoKey: v('BREVO_API_KEY'), remetente: v('EMAIL_REMETENTE'), admin: v('EMAIL_ADMIN') },
+    telegram: { token: v('TELEGRAM_BOT_TOKEN'), chatId: v('TELEGRAM_CHAT_ID') },
+    callmebot: { telefone: digitos(v('CALLMEBOT_TELEFONE')), apikey: v('CALLMEBOT_APIKEY') },
+    analytics: { ga: v('GA_ID'), metaPixel: v('META_PIXEL_ID') },
+    backup: { manterDias: Math.max(Number(v('BACKUP_MANTER_DIAS')) || 14, 1), porEmail: v('BACKUP_POR_EMAIL') === 'true' },
+    turnstile: { siteKey: v('TURNSTILE_SITE_KEY'), secret: v('TURNSTILE_SECRET') },
+    google: { clientId: v('GOOGLE_CLIENT_ID'), clientSecret: v('GOOGLE_CLIENT_SECRET') },
+    mercadoLivre: { clientId: v('ML_CLIENT_ID'), clientSecret: v('ML_CLIENT_SECRET') },
+  });
 }
+aplicarAjustes({});
+
+for (const d of [config.uploadsDir, config.backupDir]) fs.mkdirSync(d, { recursive: true });

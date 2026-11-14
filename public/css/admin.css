@@ -58,3 +58,13 @@ tbody tr:hover { background: var(--painel); }
 .login form { width: min(380px, 100%); }
 .login form > img { width: 220px; margin: 0 auto 1.5rem; }
 .toggle { display: flex; align-items: center; gap: .5rem; margin: 0; cursor: pointer; }
+/* Configurações */
+.indice-cfg { display: flex; gap: .4rem; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; background: var(--preto); padding: .6rem 0; margin-bottom: .6rem; }
+.indice-cfg a { text-decoration: none; font-size: .82rem; padding: .35rem .7rem; border: 1px solid var(--linha); border-radius: 999px; color: var(--suave); background: var(--grafite); }
+.indice-cfg a:hover { color: #fff; border-color: var(--vermelho); }
+.secao-cfg { scroll-margin-top: 70px; }
+.cab-cfg { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+.tag-origem { font-size: .7rem; padding: .05rem .45rem; border-radius: 6px; background: #1e3a8a; color: #bfdbfe; margin-left: .3rem; vertical-align: middle; }
+.resultado-cfg { font-size: .88rem; }
+.resultado-cfg.ok { color: #4ade80; }
+.resultado-cfg.erro { color: #fca5a5; }

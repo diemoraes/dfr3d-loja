@@ -1,6 +1,7 @@
 // Banco de dados SQLite (embutido no Node.js 22.5+, sem instalar nada)
 import { DatabaseSync } from 'node:sqlite';
-import { config } from './config.js';
+import crypto from 'node:crypto';
+import { config, aplicarAjustes } from './config.js';
 import { emitir } from './eventos.js';
 import { HttpError } from './http.js';
 
@@ -200,6 +201,20 @@ adicionarColuna('pedidos', 'rastreio_status', "TEXT DEFAULT ''");
 adicionarColuna('pedidos', 'rastreio_verificado', "TEXT DEFAULT ''");
 adicionarColuna('encomendas', 'cliente_id', 'INTEGER');
 db.exec('CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(cliente_id); CREATE INDEX IF NOT EXISTS idx_pedidos_email ON pedidos(cliente_email);');
+
+// ---------- Configurações salvas pelo painel ----------
+{
+  const r = db.prepare("SELECT valor FROM ajustes WHERE chave = 'config'").get();
+  aplicarAjustes(r ? JSON.parse(r.valor || '{}') : {});
+  // Segredo das sessões: usa o do ambiente ou gera um e guarda no banco (ninguém precisa digitar)
+  if (!config.sessionSecret || config.sessionSecret.length < 32) {
+    const s = db.prepare("SELECT valor FROM ajustes WHERE chave = 'session_secret'").get();
+    config.sessionSecret = s ? JSON.parse(s.valor) : crypto.randomBytes(48).toString('base64url');
+    if (!s) db.prepare("INSERT INTO ajustes (chave, valor) VALUES ('session_secret', ?)").run(JSON.stringify(config.sessionSecret));
+  }
+  const temHash = db.prepare("SELECT 1 FROM ajustes WHERE chave = 'admin_senha'").get();
+  if (!temHash && !config.adminPassword) console.warn('⚠ Nenhuma senha do painel: defina ADMIN_PASSWORD na Hostinger para o primeiro acesso.');
+}
 
 export const STATUS_PEDIDO = {
   aguardando_pagamento: 'Aguardando pagamento',
