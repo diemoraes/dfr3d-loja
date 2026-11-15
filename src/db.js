@@ -214,6 +214,15 @@ adicionarColuna('pedidos', 'rastreio_verificado', "TEXT DEFAULT ''");
 adicionarColuna('encomendas', 'cliente_id', 'INTEGER');
 if (!ehMysql) db.exec('CREATE INDEX IF NOT EXISTS idx_pedidos_cliente ON pedidos(cliente_id); CREATE INDEX IF NOT EXISTS idx_pedidos_email ON pedidos(cliente_email);');
 
+// ml_item_id era VARCHAR(40) (1 código MLB); agora guarda vários, separados por vírgula, quando
+// a importação do Mercado Livre une anúncios que só mudam de cor num produto só.
+if (ehMysql) {
+  const col = db.prepare(
+    "SELECT CHARACTER_MAXIMUM_LENGTH len FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'produtos' AND COLUMN_NAME = 'ml_item_id'"
+  ).get();
+  if (col && col.len < 255) db.exec("ALTER TABLE produtos MODIFY ml_item_id VARCHAR(255) NOT NULL DEFAULT ''");
+}
+
 // ---------- Primeira vez no MySQL: copia os dados do SQLite antigo (se existir) ----------
 if (ehMysql && fs.existsSync(config.dbFile)) {
   const vazio = ['produtos', 'pedidos', 'ajustes'].every((t) => db.prepare(`SELECT COUNT(*) n FROM ${t}`).get().n === 0);

@@ -27,7 +27,7 @@ export const TABELAS_MYSQL = [
     variacao_rotulo VARCHAR(60) NOT NULL DEFAULT 'Tamanho',
     personalizacao ${V(100)},
     personalizacao_max INT DEFAULT 20,
-    ml_item_id ${V(40)},
+    ml_item_id ${V()}, -- 1 ou mais códigos MLB separados por vírgula (cores do mesmo produto importadas juntas)
     promo_pct INT DEFAULT 0,
     promo_ate ${V(20)},
     INDEX idx_produtos_ativo (ativo)
