@@ -11,7 +11,8 @@ import { apiMelhorEnvio } from '../frete.js';
 const mascarar = (v) => (!v ? '' : v.length >= 12 ? `••••••${v.slice(-4)}` : '••••••');
 
 function normalizar(campo, bruto) {
-  let v = limpar(bruto, 1000);
+  // Segredos (tokens JWT, como o do Melhor Envio) passam de 1000 caracteres: não podem ser cortados.
+  let v = limpar(bruto, campo.tipo === 'segredo' ? 4000 : 1000);
   const erro = (msg) => { throw new HttpError(400, `${campo.rotulo}: ${msg}`); };
   if (v === '') return '';
   switch (campo.tipo) {
