@@ -337,19 +337,67 @@
   }
 
   // ---------- Produtos ----------
+  const normalizarBusca = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const linhaProduto = (p) => `<tr data-id="${p.id}"><td><div class="mini-foto">${foto(p.imagens[0])}</div></td>
+      <td><strong>${esc(p.nome)}</strong>${p.destaque ? ' <span class="vermelho">★</span>' : ''}${p.cores.length ? `<div class="suave" style="font-size:.8rem">${esc(p.cores.join(', '))}</div>` : ''}</td>
+      <td>${esc(p.categoria)}</td><td>${p.promo_pct ? `<s class="suave">${brl(p.preco_original_cents)}</s> <strong style="color:#4ade80">${brl(p.preco_cents)}</strong>` : brl(p.preco_cents)}</td>
+      <td>${p.sob_demanda ? '<span class="suave">sob demanda</span>' : p.estoque}</td>
+      <td>${p.ativo ? 'À venda' : '<span class="suave">Oculto</span>'}</td></tr>`;
+
   async function produtos() {
     const c = $('#conteudo');
     const lista = await api('/api/admin/produtos');
+    let termo = '', pagina = 1;
+    let tamanho = Number(localStorage.getItem('admin-produtos-tam')) || 20;
+    if (![10, 20, 50, 100].includes(tamanho)) tamanho = 20;
+
+    const filtrados = () => {
+      if (!termo.trim()) return lista;
+      const t = normalizarBusca(termo);
+      return lista.filter((p) => normalizarBusca(p.nome).includes(t) || normalizarBusca(p.categoria).includes(t));
+    };
+
+    const renderizar = () => {
+      const dados = filtrados();
+      const totalPaginas = Math.max(1, Math.ceil(dados.length / tamanho));
+      pagina = Math.min(Math.max(pagina, 1), totalPaginas);
+      const inicio = (pagina - 1) * tamanho;
+      const pagina_atual = dados.slice(inicio, inicio + tamanho);
+      $('#produtos-corpo').innerHTML = pagina_atual.length ? pagina_atual.map(linhaProduto).join('')
+        : `<tr><td colspan="6" class="suave" style="text-align:center;padding:2rem 0">Nenhum produto encontrado para "${esc(termo)}".</td></tr>`;
+      $('#produtos-corpo').querySelectorAll('tr[data-id]').forEach((tr) => tr.onclick = () => editarProduto(lista.find((x) => x.id == tr.dataset.id)));
+      $('#p-contagem').textContent = dados.length ? `${inicio + 1}–${Math.min(inicio + tamanho, dados.length)} de ${dados.length}` : `0 de ${lista.length}`;
+      $('#p-pagina-atual').textContent = `Página ${pagina} de ${totalPaginas}`;
+      $('#p-anterior').disabled = pagina <= 1;
+      $('#p-proxima').disabled = pagina >= totalPaginas;
+    };
+
     c.innerHTML = `<div class="cabecalho"><h1>Produtos</h1><button class="btn" id="novo"><span>+ Novo produto</span></button></div>
-      ${lista.length ? `<div class="tabela-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Situação</th></tr></thead><tbody>
-        ${lista.map((p) => `<tr data-id="${p.id}"><td><div class="mini-foto">${foto(p.imagens[0])}</div></td>
-          <td><strong>${esc(p.nome)}</strong>${p.destaque ? ' <span class="vermelho">★</span>' : ''}${p.cores.length ? `<div class="suave" style="font-size:.8rem">${esc(p.cores.join(', '))}</div>` : ''}</td>
-          <td>${esc(p.categoria)}</td><td>${p.promo_pct ? `<s class="suave">${brl(p.preco_original_cents)}</s> <strong style="color:#4ade80">${brl(p.preco_cents)}</strong>` : brl(p.preco_cents)}</td>
-          <td>${p.sob_demanda ? '<span class="suave">sob demanda</span>' : p.estoque}</td>
-          <td>${p.ativo ? 'À venda' : '<span class="suave">Oculto</span>'}</td></tr>`).join('')}
-      </tbody></table></div>` : '<div class="caixa vazio"><p class="suave">Cadastre seu primeiro produto.</p></div>'}`;
+      ${lista.length ? `
+        <div style="display:flex;gap:.8rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem">
+          <input id="p-busca" placeholder="Buscar por nome ou categoria…" style="flex:1;min-width:220px">
+          <label class="suave" style="display:flex;gap:.5rem;align-items:center;white-space:nowrap">Por página
+            <select id="p-tam">${[10, 20, 50, 100].map((n) => `<option value="${n}" ${n === tamanho ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          </label>
+        </div>
+        <div class="tabela-wrap"><table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Situação</th></tr></thead>
+          <tbody id="produtos-corpo"></tbody></table></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.8rem;margin-top:1rem">
+          <span class="suave" id="p-contagem"></span>
+          <div style="display:flex;gap:.6rem;align-items:center">
+            <button type="button" class="btn pequeno contorno" id="p-anterior"><span>← Anterior</span></button>
+            <span class="suave" id="p-pagina-atual"></span>
+            <button type="button" class="btn pequeno contorno" id="p-proxima"><span>Próxima →</span></button>
+          </div>
+        </div>`
+        : '<div class="caixa vazio"><p class="suave">Cadastre seu primeiro produto.</p></div>'}`;
     $('#novo').onclick = () => editarProduto(null);
-    c.querySelectorAll('tbody tr').forEach((tr) => tr.onclick = () => editarProduto(lista.find((x) => x.id == tr.dataset.id)));
+    if (!lista.length) return;
+    renderizar();
+    $('#p-busca').addEventListener('input', (e) => { termo = e.target.value; pagina = 1; renderizar(); });
+    $('#p-tam').addEventListener('change', (e) => { tamanho = Number(e.target.value); localStorage.setItem('admin-produtos-tam', tamanho); pagina = 1; renderizar(); });
+    $('#p-anterior').addEventListener('click', () => { pagina--; renderizar(); });
+    $('#p-proxima').addEventListener('click', () => { pagina++; renderizar(); });
   }
 
   function editarProduto(p) {
