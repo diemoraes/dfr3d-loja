@@ -23,8 +23,10 @@ function decodificar(dataUrl) {
 const nomeAleatorio = (ext) => `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
 
 /** Foto de produto: só JPG/PNG/WEBP, até 5 MB. Retorna o nome do arquivo salvo. */
-export function salvarImagem(dataUrl) {
-  const buf = decodificar(dataUrl);
+export const salvarImagem = (dataUrl) => salvarImagemBuffer(decodificar(dataUrl));
+
+/** Mesma validação, a partir dos bytes (usado na importação do Mercado Livre). */
+export function salvarImagemBuffer(buf) {
   if (buf.length > 5 * 1024 * 1024) throw new HttpError(413, 'A foto passa de 5 MB.');
   const ext = Object.keys(ASSINATURAS).find((k) => ASSINATURAS[k](buf));
   if (!ext) throw new HttpError(400, 'Envie fotos em JPG, PNG ou WEBP.');

@@ -6,7 +6,7 @@ import { db, ehMysql, dataHoraLocal, gerarCodigo, produtoPublico, registrarHisto
 import { sendJson, readJson, HttpError, limpar, soDigitos, exigir, slugify, serveFile, redirect } from '../http.js';
 import { login, logoutCookie, estaLogado, exigirAdmin } from '../auth.js';
 import { emitir } from '../eventos.js';
-import { salvarImagem, apagarImagem, privadoDir } from '../uploads.js';
+import { salvarImagem, salvarImagemBuffer, apagarImagem, privadoDir } from '../uploads.js';
 import { mpAtivo, criarPagamento } from '../mercadopago.js';
 import { emailAtivo, celularAtivo, enviarEmail, avisarCelular } from '../notificacoes.js';
 import { etiquetaAtiva, gerarEtiqueta, buscarRastreio } from '../etiqueta.js';
@@ -417,6 +417,26 @@ export function rotasAdmin(r) {
     exigirAdmin(req);
     sendJson(res, 200, await ML.lerAnuncio(params.id.toUpperCase()));
   });
+  // Importação de anúncios do ML como produtos da loja
+  r.get('/api/admin/ml/anuncios', async (req, res) => {
+    exigirAdmin(req);
+    sendJson(res, 200, await ML.listarAnuncios());
+  });
+  r.post('/api/admin/ml/importar', async (req, res) => {
+    exigirAdmin(req);
+    const b = await readJson(req);
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map((x) => limpar(x, 30)).filter(Boolean).slice(0, 200);
+    exigir(ids.length, 'Escolha pelo menos um anúncio.');
+    const colunas = [...CAMPOS, 'imagens'];
+    const inserirProduto = (d) => {
+      const info = db.prepare(`INSERT INTO produtos (slug, ${colunas.join(', ')}) VALUES (?, ${colunas.map(() => '?').join(', ')})`)
+        .run(slugUnico(d.nome), ...colunas.map((c) => d[c]));
+      return Number(info.lastInsertRowid);
+    };
+    const r = await ML.importarAnuncios(ids, { salvarFoto: salvarImagemBuffer, inserirProduto });
+    sendJson(res, 200, r);
+  });
+
   r.post('/api/admin/ml/sincronizar', async (req, res) => {
     exigirAdmin(req);
     const vinculados = db.prepare("SELECT * FROM produtos WHERE ml_item_id != '' AND estoque IS NOT NULL").all();

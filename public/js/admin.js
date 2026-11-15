@@ -876,9 +876,9 @@
       </div>
 
       <div class="caixa"><h3>Mercado Livre — estoque sincronizado</h3>
-        ${!i.ml.configurado ? `<p class="suave">1. Crie um app em <a href="https://developers.mercadolivre.com.br/devcenter" target="_blank">developers.mercadolivre.com.br</a><br>2. Em "URI de redirect" use: <code>${esc(i.ml.redirect)}</code><br>3. Em "Notificações" use: <code>${esc(i.ml.webhook)}</code> e marque o tópico <b>orders_v2</b><br>4. Preencha ML_CLIENT_ID e ML_CLIENT_SECRET e reinicie a loja.</p>`
-          : i.ml.conectado ? `<p>Conectado${i.ml.conta?.apelido ? ` como <strong>${esc(i.ml.conta.apelido)}</strong>` : ''}${i.ml.conta?.erro ? ` <span class="vermelho">(${esc(i.ml.conta.erro)})</span>` : ''}. Vincule cada produto ao anúncio (MLB…) na ficha do produto.</p>
-            <div class="acoes-gaveta"><button class="btn pequeno" id="ml-sync"><span>Enviar estoque agora</span></button><button class="link-btn" id="ml-sair">desconectar</button></div>`
+        ${!i.ml.configurado ? `<p class="suave">1. Crie um app em <a href="https://developers.mercadolivre.com.br/devcenter" target="_blank">developers.mercadolivre.com.br</a><br>2. Em "URI de redirect" use: <code>${esc(i.ml.redirect)}</code><br>3. Em "Notificações" use: <code>${esc(i.ml.webhook)}</code> e marque o tópico <b>orders_v2</b><br>4. Preencha App ID e Chave secreta em ⚙️ Configurações → Mercado Livre (vale na hora).</p>`
+          : i.ml.conectado ? `<p>Conectado${i.ml.conta?.apelido ? ` como <strong>${esc(i.ml.conta.apelido)}</strong>` : ''}${i.ml.conta?.erro ? ` <span class="vermelho">(${esc(i.ml.conta.erro)})</span>` : ''}. Importe seus anúncios como produtos da loja (já ficam vinculados e com o estoque sincronizado) ou vincule um produto existente ao anúncio (MLB…) na ficha dele.</p>
+            <div class="acoes-gaveta"><button class="btn pequeno" id="ml-importar"><span>📥 Importar anúncios</span></button><button class="btn pequeno contorno" id="ml-sync"><span>Enviar estoque agora</span></button><button class="link-btn" id="ml-sair">desconectar</button></div>`
           : '<a class="btn pequeno" href="/api/admin/ml/conectar"><span>Conectar conta do Mercado Livre</span></a>'}
       </div>
 
@@ -892,6 +892,54 @@
     $('#backup-agora').onclick = async () => { try { await api('/api/admin/backup', { method: 'POST' }); toast('Backup feito.'); integracoes(); } catch (e) { toast(e.message); } };
     $('#ml-sync')?.addEventListener('click', async () => { try { const r = await api('/api/admin/ml/sincronizar', { method: 'POST' }); toast(`${r.enviados} anúncio(s) atualizado(s)${r.erros.length ? ` · ${r.erros.length} erro(s): ${r.erros[0]}` : ''}`); } catch (e) { toast(e.message); } });
     $('#ml-sair')?.addEventListener('click', async () => { if (confirm('Desconectar o Mercado Livre?')) { await api('/api/admin/ml/desconectar', { method: 'POST' }); integracoes(); } });
+    $('#ml-importar')?.addEventListener('click', importarDoML);
+  }
+
+  // Importação de anúncios do Mercado Livre → produtos
+  async function importarDoML() {
+    abrirGaveta('<span class="etiqueta">Mercado Livre</span><h2>Importar anúncios</h2><p class="carregando">Buscando seus anúncios no Mercado Livre…</p>');
+    let lista;
+    try { lista = await api('/api/admin/ml/anuncios'); }
+    catch (e) { $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importar anúncios</h2><div class="aviso erro">${esc(e.message)}</div>`; return; }
+    const pendentes = lista.filter((a) => !a.importado);
+    const linha = (a) => `<label style="display:flex;gap:.8rem;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--linha);${a.importado ? 'opacity:.55' : 'cursor:pointer'}">
+        <input type="checkbox" class="ml-sel" value="${esc(a.id)}" ${a.importado ? 'disabled' : 'checked'}>
+        ${a.miniatura ? `<img src="${esc(a.miniatura)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;background:#222">` : '<div class="placeholder" style="width:48px;height:48px">3D</div>'}
+        <div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.titulo)}</div>
+          <div class="suave" style="font-size:.85rem">${brl(a.preco_cents)} · ${a.quantidade} em estoque${a.variacoes ? ` · ${a.variacoes} variação(ões)` : ''} · ${a.status === 'active' ? 'ativo' : 'pausado'}${a.vendidos ? ` · ${a.vendidos} vendido(s)` : ''}
+          ${a.importado ? ' · <strong>já importado</strong>' : ''} · <a href="${esc(a.link)}" target="_blank" rel="noopener">ver</a></div></div></label>`;
+    $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importar anúncios</h2>
+      ${lista.length ? `<p class="suave" style="margin-top:0">${lista.length} anúncio(s) encontrado(s), ${pendentes.length} ainda não importado(s). Vêm título, preço, descrição, fotos, estoque, peso e medidas; o produto já fica vinculado ao anúncio. Depois você pode editar tudo na ficha do produto.</p>
+        <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem"><input type="checkbox" id="ml-todos" ${pendentes.length ? 'checked' : 'disabled'}> Selecionar todos os pendentes</label>
+        <div id="ml-lista">${lista.map(linha).join('')}</div>
+        <div class="acoes-gaveta" style="margin-top:1rem"><button class="btn" id="ml-importar-ok" ${pendentes.length ? '' : 'disabled'}><span>Importar selecionados</span></button><span class="suave" id="ml-progresso"></span></div>`
+        : '<div class="aviso">Nenhum anúncio ativo ou pausado encontrado nesta conta.</div>'}`;
+    const marcados = () => [...document.querySelectorAll('.ml-sel:checked')].map((c) => c.value);
+    $('#ml-todos')?.addEventListener('change', (e) => document.querySelectorAll('.ml-sel:not(:disabled)').forEach((c) => { c.checked = e.target.checked; }));
+    $('#ml-importar-ok')?.addEventListener('click', async () => {
+      const ids = marcados();
+      if (!ids.length) return toast('Marque pelo menos um anúncio.');
+      const b = $('#ml-importar-ok'); b.disabled = true;
+      const prog = $('#ml-progresso');
+      const resultado = { importados: [], pulados: [], erros: [] };
+      // Em lotes de 3: as fotos são baixadas no servidor e cada anúncio leva alguns segundos
+      for (let i = 0; i < ids.length; i += 3) {
+        prog.textContent = `Importando ${Math.min(i + 3, ids.length)} de ${ids.length}…`;
+        try {
+          const r = await api('/api/admin/ml/importar', { method: 'POST', body: { ids: ids.slice(i, i + 3) } });
+          resultado.importados.push(...r.importados); resultado.pulados.push(...r.pulados); resultado.erros.push(...r.erros);
+        } catch (e) { resultado.erros.push(e.message); }
+      }
+      prog.textContent = '';
+      const semFoto = resultado.importados.filter((x) => !x.fotos).length;
+      $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importação concluída</h2>
+        <div class="aviso ok">${resultado.importados.length} produto(s) criado(s)${resultado.pulados.length ? ` · ${resultado.pulados.length} já existia(m)` : ''}${semFoto ? ` · ${semFoto} sem foto (não foi possível baixar)` : ''}.</div>
+        ${resultado.erros.length ? `<div class="aviso erro"><strong>${resultado.erros.length} erro(s):</strong><br>${resultado.erros.map(esc).join('<br>')}</div>` : ''}
+        <ul style="padding-left:1.2rem">${resultado.importados.map((x) => `<li>${esc(x.nome)} <span class="suave">(${x.fotos} foto(s))</span></li>`).join('')}</ul>
+        <p class="ajuda">Confira preço, prazo de produção e cores na ficha de cada produto. Anúncios pausados entraram como produtos inativos.</p>
+        <div class="acoes-gaveta"><button class="btn" id="ml-ver-produtos"><span>Ver produtos</span></button></div>`;
+      $('#ml-ver-produtos').onclick = () => { fecharGaveta(); irPara('produtos'); };
+    });
   }
 
   iniciar().catch(() => telaLogin());
