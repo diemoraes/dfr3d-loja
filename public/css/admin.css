@@ -68,3 +68,5 @@ tbody tr:hover { background: var(--painel); }
 .resultado-cfg { font-size: .88rem; }
 .resultado-cfg.ok { color: #4ade80; }
 .resultado-cfg.erro { color: #fca5a5; }
+.link-3d { background: none; border: 0; color: var(--vermelho); font: inherit; font-size: .9rem; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
+.link-3d:hover { color: #fff; }
