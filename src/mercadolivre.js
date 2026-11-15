@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { db, lerAjuste, salvarAjuste } from './db.js';
 import { eventos, emitir } from './eventos.js';
 import { HttpError } from './http.js';
+import { normalizar } from './catalogo.js';
 
 const API = 'https://api.mercadolibre.com';
 export const mlConfigurado = () => Boolean(config.mercadoLivre.clientId && config.mercadoLivre.clientSecret);
@@ -117,6 +118,33 @@ eventos.on('estoque:sincronizar', sincronizarAnuncios); // ajuste de estoque no 
 
 // ---------- Importação de anúncios → produtos da loja ----------
 
+// O Mercado Livre tem uma árvore de categorias bem mais granular do que o menu da loja
+// (ex.: "Suportes para Celulares", "Enfeites para Árvores"), e o filtro do menu compara o
+// texto exato — por isso um anúncio importado direto nunca aparecia em "Natal", "Chaveiros"
+// etc. Aqui a gente classifica pelo título do anúncio (e pela categoria do ML, como reforço)
+// numa das categorias que já existem no menu da loja.
+const REGRAS_CATEGORIA = [
+  ['Natal', ['natal', 'noel', 'natalino', 'advento']],
+  ['Chaveiros', ['chaveiro']],
+  ['Geek e Games', [
+    'playstation', 'ps5', 'ps4', 'xbox', 'nintendo', 'kratos', 'god of war', 'alexa', 'echo dot',
+    'celular', 'notebook', 'fone de ouvido', 'headset', 'figura de acao', 'figurinha', 'colecionave',
+    'apple watch', 'magic mouse', 'controle remoto', 'controles remotos', 'geek', 'gamer',
+  ]],
+  ['Utilidades', ['organizador', 'organizadora', 'porta ovos', 'porta copos', 'painel', 'bancada', 'cozinha', 'banheiro', 'cabo']],
+  ['Decoração', ['vaso', 'luminaria', 'quadro', 'decorativ', 'enfeite', 'estatueta', 'bandeja']],
+  ['Personalizados', ['personalizado', 'personalizada', 'com foto', 'gravado a laser']],
+];
+/** Escolhe a categoria do menu da loja mais próxima do anúncio, pelo título e pela categoria do ML. */
+export function categoriaDaLoja(tituloAnuncio, nomeCategoriaMl = '') {
+  const texto = normalizar(`${tituloAnuncio} ${nomeCategoriaMl}`);
+  for (const [categoria, palavras] of REGRAS_CATEGORIA) {
+    if (palavras.some((p) => texto.includes(normalizar(p)))) return categoria;
+  }
+  if (texto.includes('suporte')) return 'Utilidades'; // genérico, sem outro sinal mais específico
+  return 'Presentes';
+}
+
 /** Converte um anúncio do ML em dados prontos para a tabela produtos (sem tocar no banco). Exportado para testes. */
 export function anuncioParaProduto(it, descricao = '', nomeCategoria = '') {
   const attr = (id) => (it.attributes || []).find((a) => a.id === id)?.value_name || '';
@@ -147,7 +175,7 @@ export function anuncioParaProduto(it, descricao = '', nomeCategoria = '') {
   return {
     nome: String(it.title || '').slice(0, 120),
     descricao: String(descricao || '').slice(0, 5000),
-    categoria: String(nomeCategoria || '').slice(0, 60),
+    categoria: categoriaDaLoja(it.title || '', nomeCategoria),
     preco_cents: Math.round((it.price || 0) * 100),
     estoque,
     prazo_dias: 0,
