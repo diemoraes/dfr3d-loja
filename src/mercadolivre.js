@@ -65,21 +65,28 @@ export async function lerAnuncio(itemId) {
   return { id: it.id, titulo: it.title, quantidade: it.available_quantity, status: it.status, link: it.permalink, tem_variacoes: (it.variations || []).length > 0 };
 }
 
-/** Envia o estoque do site para o anúncio. */
-export async function enviarEstoque(produto) {
-  if (!produto.ml_item_id || produto.estoque === null || !mlConectado()) return;
-  const it = await ml(`/items/${produto.ml_item_id}`);
-  const quantidade = Math.max(produto.estoque, 0);
+/** Um produto pode estar ligado a mais de um anúncio (cores importadas juntas como 1 produto só). */
+export const idsDoProduto = (mlItemId) => String(mlItemId || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+async function enviarEstoqueParaAnuncio(itemId, quantidade) {
+  const it = await ml(`/items/${itemId}`);
   if ((it.variations || []).length) {
     // Anúncio com variações: aplica a mesma quantidade a todas (ajuste fino no ML se precisar)
-    await ml(`/items/${produto.ml_item_id}`, { method: 'PUT', body: JSON.stringify({ variations: it.variations.map((v) => ({ id: v.id, available_quantity: quantidade })) }) });
+    await ml(`/items/${itemId}`, { method: 'PUT', body: JSON.stringify({ variations: it.variations.map((v) => ({ id: v.id, available_quantity: quantidade })) }) });
   } else if (quantidade === 0) {
-    await ml(`/items/${produto.ml_item_id}`, { method: 'PUT', body: JSON.stringify({ available_quantity: 0 }) }).catch(async () => {
-      await ml(`/items/${produto.ml_item_id}`, { method: 'PUT', body: JSON.stringify({ status: 'paused' }) });
+    await ml(`/items/${itemId}`, { method: 'PUT', body: JSON.stringify({ available_quantity: 0 }) }).catch(async () => {
+      await ml(`/items/${itemId}`, { method: 'PUT', body: JSON.stringify({ status: 'paused' }) });
     });
   } else {
-    await ml(`/items/${produto.ml_item_id}`, { method: 'PUT', body: JSON.stringify({ available_quantity: quantidade, ...(it.status === 'paused' ? { status: 'active' } : {}) }) });
+    await ml(`/items/${itemId}`, { method: 'PUT', body: JSON.stringify({ available_quantity: quantidade, ...(it.status === 'paused' ? { status: 'active' } : {}) }) });
   }
+}
+
+/** Envia o estoque do site para o(s) anúncio(s) ligados ao produto (a mesma quantidade para cada cor/anúncio). */
+export async function enviarEstoque(produto) {
+  if (!produto.ml_item_id || produto.estoque === null || !mlConectado()) return;
+  const quantidade = Math.max(produto.estoque, 0);
+  for (const itemId of idsDoProduto(produto.ml_item_id)) await enviarEstoqueParaAnuncio(itemId, quantidade);
 }
 
 /** Notificação do ML: uma venda lá baixa o estoque aqui (cada pedido só uma vez). */
@@ -93,7 +100,9 @@ export async function processarNotificacao(corpo) {
   if (processados.includes(pedido.id)) return;
   const alterados = [], vendidos = [];
   for (const item of pedido.order_items || []) {
-    const p = db.prepare('SELECT * FROM produtos WHERE ml_item_id = ? AND estoque IS NOT NULL').get(item.item.id);
+    // produto pode estar ligado a mais de um anúncio (cores importadas juntas) — compara por item, não pela coluna inteira
+    const p = db.prepare("SELECT * FROM produtos WHERE estoque IS NOT NULL AND ml_item_id != ''").all()
+      .find((x) => idsDoProduto(x.ml_item_id).includes(item.item.id));
     if (!p) continue;
     db.prepare('UPDATE produtos SET estoque = MAX(estoque - ?, 0) WHERE id = ?').run(item.quantity, p.id);
     alterados.push(p.id);
@@ -143,6 +152,18 @@ export function categoriaDaLoja(tituloAnuncio, nomeCategoriaMl = '') {
   }
   if (texto.includes('suporte')) return 'Utilidades'; // genérico, sem outro sinal mais específico
   return 'Presentes';
+}
+
+// Vários anúncios do mesmo produto, um para cada cor, têm o mesmo título com a cor só no final
+// ("... Colmeia 3d Vermelho" / "... Colmeia 3d Verde"). Ao importar, eles viram 1 produto só com
+// as cores na ficha — igual ao Mercado Livre — em vez de 3 produtos "duplicados".
+const CORES_CONHECIDAS = ['vermelho', 'verde', 'azul', 'amarelo', 'branco', 'preto', 'rosa', 'roxo', 'laranja', 'cinza', 'marrom', 'dourado', 'prateado', 'bege', 'turquesa', 'vinho'];
+/** Separa a última palavra do título quando é uma cor conhecida. */
+export function baseSemCor(titulo) {
+  const partes = String(titulo || '').trim().split(/\s+/);
+  const ultima = partes[partes.length - 1] || '';
+  if (partes.length > 1 && CORES_CONHECIDAS.includes(normalizar(ultima))) return { base: partes.slice(0, -1).join(' '), cor: ultima };
+  return { base: String(titulo || '').trim(), cor: '' };
 }
 
 /** Converte um anúncio do ML em dados prontos para a tabela produtos (sem tocar no banco). Exportado para testes. */
@@ -213,14 +234,17 @@ export async function listarAnuncios() {
     }
   }
   const unicos = [...new Set(ids)];
-  const importados = new Set(db.prepare("SELECT ml_item_id FROM produtos WHERE ml_item_id != ''").all().map((p) => p.ml_item_id));
+  // produto pode estar ligado a mais de um anúncio (cores importadas juntas como 1 produto só)
+  const importados = new Set(db.prepare("SELECT ml_item_id FROM produtos WHERE ml_item_id != ''").all().flatMap((p) => idsDoProduto(p.ml_item_id)));
   const lista = [];
   for (let i = 0; i < unicos.length; i += 20) {
     const lote = await ml(`/items?ids=${unicos.slice(i, i + 20).join(',')}&attributes=id,title,price,available_quantity,status,permalink,secure_thumbnail,thumbnail,variations,sold_quantity`);
     for (const r of lote) {
       const b = r.body; if (!b || r.code !== 200) continue;
+      const { base, cor } = baseSemCor(b.title);
       lista.push({ id: b.id, titulo: b.title, preco_cents: Math.round((b.price || 0) * 100), quantidade: b.available_quantity ?? 0, status: b.status,
-        link: b.permalink, miniatura: b.secure_thumbnail || b.thumbnail || '', variacoes: (b.variations || []).length, vendidos: b.sold_quantity || 0, importado: importados.has(b.id) });
+        link: b.permalink, miniatura: b.secure_thumbnail || b.thumbnail || '', variacoes: (b.variations || []).length, vendidos: b.sold_quantity || 0,
+        importado: importados.has(b.id), grupo: normalizar(base), cor });
     }
   }
   lista.sort((a, b) => (a.status === b.status ? a.titulo.localeCompare(b.titulo) : a.status === 'active' ? -1 : 1));
@@ -247,22 +271,53 @@ async function nomeCategoria(id) {
  */
 export async function importarAnuncios(ids, { salvarFoto, inserirProduto }) {
   const resultado = { importados: [], pulados: [], erros: [] };
+  const jaLigados = new Set(db.prepare("SELECT ml_item_id FROM produtos WHERE ml_item_id != ''").all().flatMap((p) => idsDoProduto(p.ml_item_id)));
+
+  // 1ª passada: valida e busca cada anúncio escolhido
+  const buscados = [];
   for (const idBruto of ids) {
     const id = String(idBruto || '').toUpperCase().trim();
     if (!/^MLB\d+$/.test(id)) { resultado.erros.push(`${idBruto}: código inválido`); continue; }
-    if (db.prepare('SELECT 1 FROM produtos WHERE ml_item_id = ?').get(id)) { resultado.pulados.push(id); continue; }
+    if (jaLigados.has(id)) { resultado.pulados.push(id); continue; }
     try {
       const it = await ml(`/items/${id}`);
       const desc = await ml(`/items/${id}/description`).then((d) => d.plain_text || '').catch(() => '');
-      const d = anuncioParaProduto(it, desc, await nomeCategoria(it.category_id));
-      const imagens = [];
-      for (const url of d.fotos) {
-        try { imagens.push(salvarFoto(await baixarFoto(url))); } catch (e) { console.error(`ML ${id} foto:`, e.message); }
-      }
-      const produtoId = inserirProduto({ ...d, imagens: JSON.stringify(imagens) });
-      resultado.importados.push({ id, produto_id: produtoId, nome: d.nome, fotos: imagens.length });
+      buscados.push({ id, it, desc, ...baseSemCor(it.title) });
     } catch (e) {
       resultado.erros.push(`${id}: ${e.message}`);
+    }
+  }
+
+  // 2ª passada: agrupa pelo nome sem a cor (mesmo produto, só muda a cor) e cria 1 produto por grupo
+  const grupos = new Map();
+  for (const item of buscados) {
+    const chave = normalizar(item.base);
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(item);
+  }
+
+  for (const grupo of grupos.values()) {
+    const idsGrupo = grupo.map((g) => g.id).join(',');
+    try {
+      const categoria = await nomeCategoria(grupo[0].it.category_id);
+      const convertidos = grupo.map((g) => ({ ...g, d: anuncioParaProduto(g.it, g.desc, categoria) }));
+      const cores = [...new Set(convertidos.map((g) => g.cor).filter(Boolean))];
+      const d = {
+        ...convertidos[0].d,
+        nome: grupo.length > 1 ? grupo[0].base.slice(0, 120) : convertidos[0].d.nome,
+        cores: cores.length ? cores.join(', ').slice(0, 400) : convertidos[0].d.cores,
+        estoque: convertidos.reduce((s, g) => s + (g.d.estoque || 0), 0),
+        fotos: [...new Set(convertidos.flatMap((g) => g.d.fotos))].slice(0, 10),
+        ml_item_id: idsGrupo,
+      };
+      const imagens = [];
+      for (const url of d.fotos) {
+        try { imagens.push(salvarFoto(await baixarFoto(url))); } catch (e) { console.error(`ML ${idsGrupo} foto:`, e.message); }
+      }
+      const produtoId = inserirProduto({ ...d, imagens: JSON.stringify(imagens) });
+      resultado.importados.push({ id: idsGrupo, produto_id: produtoId, nome: d.nome, fotos: imagens.length, cores_unidas: grupo.length > 1 ? grupo.length : 0 });
+    } catch (e) {
+      resultado.erros.push(`${idsGrupo}: ${e.message}`);
     }
   }
   return resultado;

@@ -901,32 +901,45 @@
     let lista;
     try { lista = await api('/api/admin/ml/anuncios'); }
     catch (e) { $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importar anúncios</h2><div class="aviso erro">${esc(e.message)}</div>`; return; }
-    const pendentes = lista.filter((a) => !a.importado);
-    const linha = (a) => `<label style="display:flex;gap:.8rem;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--linha);${a.importado ? 'opacity:.55' : 'cursor:pointer'}">
-        <input type="checkbox" class="ml-sel" value="${esc(a.id)}" ${a.importado ? 'disabled' : 'checked'}>
-        ${a.miniatura ? `<img src="${esc(a.miniatura)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;background:#222">` : '<div class="placeholder" style="width:48px;height:48px">3D</div>'}
-        <div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.titulo)}</div>
-          <div class="suave" style="font-size:.85rem">${brl(a.preco_cents)} · ${a.quantidade} em estoque${a.variacoes ? ` · ${a.variacoes} variação(ões)` : ''} · ${a.status === 'active' ? 'ativo' : 'pausado'}${a.vendidos ? ` · ${a.vendidos} vendido(s)` : ''}
-          ${a.importado ? ' · <strong>já importado</strong>' : ''} · <a href="${esc(a.link)}" target="_blank" rel="noopener">ver</a></div></div></label>`;
+    // Anúncios que só mudam de cor (mesmo título, cor no final) viram 1 linha só — importam juntos como 1 produto com variação de cor
+    const porGrupo = new Map();
+    for (const a of lista) { if (!porGrupo.has(a.grupo)) porGrupo.set(a.grupo, []); porGrupo.get(a.grupo).push(a); }
+    const grupos = [...porGrupo.values()];
+    const pendentes = grupos.filter((g) => g.some((a) => !a.importado));
+    const linha = (g) => {
+      const base = g[0], pend = g.filter((a) => !a.importado), todoImportado = !pend.length;
+      const cores = g.map((a) => a.cor).filter(Boolean);
+      const titulo = g.length > 1 ? base.titulo.replace(new RegExp(`\\s+${base.cor}$`, 'i'), '') : base.titulo;
+      const quantidade = g.reduce((s, a) => s + a.quantidade, 0);
+      return `<label style="display:flex;gap:.8rem;align-items:center;padding:.6rem 0;border-bottom:1px solid var(--linha);${todoImportado ? 'opacity:.55' : 'cursor:pointer'}">
+        <input type="checkbox" class="ml-sel" data-ids="${esc(pend.map((a) => a.id).join(','))}" ${todoImportado ? 'disabled' : 'checked'}>
+        ${base.miniatura ? `<img src="${esc(base.miniatura)}" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:8px;background:#222">` : '<div class="placeholder" style="width:48px;height:48px">3D</div>'}
+        <div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(titulo)}</div>
+          <div class="suave" style="font-size:.85rem">${brl(base.preco_cents)} · ${quantidade} em estoque${base.variacoes ? ` · ${base.variacoes} variação(ões)` : ''} · ${base.status === 'active' ? 'ativo' : 'pausado'}${base.vendidos ? ` · ${base.vendidos} vendido(s)` : ''}
+          ${cores.length > 1 ? ` · <strong>une ${cores.length} cores em 1 produto:</strong> ${esc(cores.join(', '))}` : ''}
+          ${todoImportado ? ' · <strong>já importado</strong>' : pend.length < g.length ? ` · ${g.length - pend.length} cor(es) já importada(s)` : ''} · <a href="${esc(base.link)}" target="_blank" rel="noopener">ver</a></div></div></label>`;
+    };
     $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importar anúncios</h2>
-      ${lista.length ? `<p class="suave" style="margin-top:0">${lista.length} anúncio(s) encontrado(s), ${pendentes.length} ainda não importado(s). Vêm título, preço, descrição, fotos, estoque, peso e medidas; o produto já fica vinculado ao anúncio. Depois você pode editar tudo na ficha do produto.</p>
+      ${grupos.length ? `<p class="suave" style="margin-top:0">${lista.length} anúncio(s) encontrado(s) em ${grupos.length} produto(s) (anúncios que só mudam de cor entram juntos, como 1 produto com variação de cor), ${pendentes.length} ainda não importado(s). Vêm título, preço, descrição, fotos, estoque, peso e medidas; o produto já fica vinculado ao(s) anúncio(s). Depois você pode editar tudo na ficha do produto.</p>
         <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem"><input type="checkbox" id="ml-todos" ${pendentes.length ? 'checked' : 'disabled'}> Selecionar todos os pendentes</label>
-        <div id="ml-lista">${lista.map(linha).join('')}</div>
+        <div id="ml-lista">${grupos.map(linha).join('')}</div>
         <div class="acoes-gaveta" style="margin-top:1rem"><button class="btn" id="ml-importar-ok" ${pendentes.length ? '' : 'disabled'}><span>Importar selecionados</span></button><span class="suave" id="ml-progresso"></span></div>`
         : '<div class="aviso">Nenhum anúncio ativo ou pausado encontrado nesta conta.</div>'}`;
-    const marcados = () => [...document.querySelectorAll('.ml-sel:checked')].map((c) => c.value);
+    const marcados = () => [...document.querySelectorAll('.ml-sel:checked')].map((c) => c.dataset.ids.split(',').filter(Boolean));
     $('#ml-todos')?.addEventListener('change', (e) => document.querySelectorAll('.ml-sel:not(:disabled)').forEach((c) => { c.checked = e.target.checked; }));
     $('#ml-importar-ok')?.addEventListener('click', async () => {
-      const ids = marcados();
-      if (!ids.length) return toast('Marque pelo menos um anúncio.');
+      const grupos = marcados(); // cada item é a lista de ids (1 ou mais cores) de um produto
+      if (!grupos.length) return toast('Marque pelo menos um anúncio.');
       const b = $('#ml-importar-ok'); b.disabled = true;
       const prog = $('#ml-progresso');
       const resultado = { importados: [], pulados: [], erros: [] };
-      // Em lotes de 3: as fotos são baixadas no servidor e cada anúncio leva alguns segundos
-      for (let i = 0; i < ids.length; i += 3) {
-        prog.textContent = `Importando ${Math.min(i + 3, ids.length)} de ${ids.length}…`;
+      // Em lotes de 3 produtos: as fotos são baixadas no servidor e cada um leva alguns segundos.
+      // Um grupo (cores do mesmo produto) sempre vai inteiro no mesmo lote, pra não separar a mesclagem.
+      for (let i = 0; i < grupos.length; i += 3) {
+        prog.textContent = `Importando ${Math.min(i + 3, grupos.length)} de ${grupos.length}…`;
         try {
-          const r = await api('/api/admin/ml/importar', { method: 'POST', body: { ids: ids.slice(i, i + 3) } });
+          const ids = grupos.slice(i, i + 3).flat();
+          const r = await api('/api/admin/ml/importar', { method: 'POST', body: { ids } });
           resultado.importados.push(...r.importados); resultado.pulados.push(...r.pulados); resultado.erros.push(...r.erros);
         } catch (e) { resultado.erros.push(e.message); }
       }
@@ -935,7 +948,7 @@
       $('#gaveta-conteudo').innerHTML = `<span class="etiqueta">Mercado Livre</span><h2>Importação concluída</h2>
         <div class="aviso ok">${resultado.importados.length} produto(s) criado(s)${resultado.pulados.length ? ` · ${resultado.pulados.length} já existia(m)` : ''}${semFoto ? ` · ${semFoto} sem foto (não foi possível baixar)` : ''}.</div>
         ${resultado.erros.length ? `<div class="aviso erro"><strong>${resultado.erros.length} erro(s):</strong><br>${resultado.erros.map(esc).join('<br>')}</div>` : ''}
-        <ul style="padding-left:1.2rem">${resultado.importados.map((x) => `<li>${esc(x.nome)} <span class="suave">(${x.fotos} foto(s))</span></li>`).join('')}</ul>
+        <ul style="padding-left:1.2rem">${resultado.importados.map((x) => `<li>${esc(x.nome)} <span class="suave">(${x.fotos} foto(s)${x.cores_unidas ? `, ${x.cores_unidas} cores unidas` : ''})</span></li>`).join('')}</ul>
         <p class="ajuda">Confira preço, prazo de produção e cores na ficha de cada produto. Anúncios pausados entraram como produtos inativos.</p>
         <div class="acoes-gaveta"><button class="btn" id="ml-ver-produtos"><span>Ver produtos</span></button></div>`;
       $('#ml-ver-produtos').onclick = () => { fecharGaveta(); irPara('produtos'); };
