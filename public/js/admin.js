@@ -256,122 +256,8 @@
     const b = e.target.closest('[data-copiar]');
     if (b) navigator.clipboard.writeText(b.dataset.copiar).then(() => toast('Copiado!'));
     const v = e.target.closest('[data-visor3d]');
-    if (v) abrirVisualizador3D(v.dataset.visor3d, v.dataset.nome3d);
+    if (v) window.Visor3D.abrir(v.dataset.visor3d, v.dataset.nome3d);
   });
-
-  // ---------- Visualizador 3D (arquivos de encomenda) ----------
-  const EXT_3D_VISIVEL = ['stl', 'obj', '3mf'];
-  const CDN_THREE = 'https://esm.sh/three@0.160.0';
-  let visor3dEstado = null;
-
-  function fecharVisualizador3D() {
-    const overlay = $('#visor3d');
-    if (visor3dEstado) {
-      cancelAnimationFrame(visor3dEstado.raf);
-      window.removeEventListener('resize', visor3dEstado.onResize);
-      try { visor3dEstado.renderer.dispose(); } catch { /* ignora */ }
-      visor3dEstado = null;
-    }
-    overlay?.remove();
-  }
-
-  async function abrirVisualizador3D(url, nomeArquivo) {
-    fecharVisualizador3D();
-    const ext = extensao(nomeArquivo);
-    const overlay = document.createElement('div');
-    overlay.id = 'visor3d';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(10,10,12,.94);display:flex;flex-direction:column';
-    overlay.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.2rem;color:#fff;flex:none">
-        <strong style="font-size:.95rem">${esc(nomeArquivo)}</strong>
-        <button type="button" id="visor3d-fechar" style="background:none;border:none;color:#fff;font-size:1.7rem;line-height:1;cursor:pointer">×</button>
-      </div>
-      <div id="visor3d-area" style="flex:1;position:relative;min-height:0">
-        <p id="visor3d-msg" style="color:#ddd;text-align:center;margin-top:3rem">Carregando modelo…</p>
-      </div>`;
-    document.body.append(overlay);
-    $('#visor3d-fechar').onclick = fecharVisualizador3D;
-    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) fecharVisualizador3D(); });
-
-    const msg = () => $('#visor3d-msg');
-    try {
-      if (!EXT_3D_VISIVEL.includes(ext)) {
-        throw new Error(`Pré-visualização não disponível para .${ext}. Baixe o arquivo para abrir num programa de CAD.`);
-      }
-
-      const [THREE, { OrbitControls }] = await Promise.all([
-        import(/* webpackIgnore: true */ CDN_THREE),
-        import(/* webpackIgnore: true */ `${CDN_THREE}/examples/jsm/controls/OrbitControls.js`),
-      ]);
-
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error('Não foi possível baixar o arquivo.');
-      const buffer = await resp.arrayBuffer();
-
-      let objeto;
-      if (ext === 'stl') {
-        const { STLLoader } = await import(/* webpackIgnore: true */ `${CDN_THREE}/examples/jsm/loaders/STLLoader.js`);
-        const geometria = new STLLoader().parse(buffer);
-        geometria.computeVertexNormals();
-        objeto = new THREE.Mesh(geometria, new THREE.MeshStandardMaterial({ color: 0xcbd0d6, metalness: 0.1, roughness: 0.7 }));
-      } else if (ext === 'obj') {
-        const { OBJLoader } = await import(/* webpackIgnore: true */ `${CDN_THREE}/examples/jsm/loaders/OBJLoader.js`);
-        objeto = new OBJLoader().parse(new TextDecoder().decode(buffer));
-        objeto.traverse((o) => { if (o.isMesh) o.material = new THREE.MeshStandardMaterial({ color: 0xcbd0d6, metalness: 0.1, roughness: 0.7 }); });
-      } else {
-        const { ThreeMFLoader } = await import(/* webpackIgnore: true */ `${CDN_THREE}/examples/jsm/loaders/3MFLoader.js`);
-        objeto = new ThreeMFLoader().parse(buffer);
-      }
-
-      if (!$('#visor3d')) return; // fechado enquanto carregava
-      const area = $('#visor3d-area');
-      msg()?.remove();
-
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x15151a);
-      const camera = new THREE.PerspectiveCamera(50, area.clientWidth / area.clientHeight, 0.1, 100000);
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(area.clientWidth, area.clientHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      area.append(renderer.domElement);
-
-      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-      const luz1 = new THREE.DirectionalLight(0xffffff, 0.9); luz1.position.set(1, 2, 3); scene.add(luz1);
-      const luz2 = new THREE.DirectionalLight(0xffffff, 0.4); luz2.position.set(-2, -1, -2); scene.add(luz2);
-
-      scene.add(objeto);
-      const caixa = new THREE.Box3().setFromObject(objeto);
-      const centro = caixa.getCenter(new THREE.Vector3());
-      const tamanho = caixa.getSize(new THREE.Vector3());
-      const raio = Math.max(tamanho.x, tamanho.y, tamanho.z, 1);
-      objeto.position.sub(centro);
-      camera.position.set(raio * 1.3, raio * 1.1, raio * 1.3);
-      camera.lookAt(0, 0, 0);
-
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.set(0, 0, 0);
-      controls.enableDamping = true;
-
-      const onResize = () => {
-        if (!area.isConnected) return;
-        camera.aspect = area.clientWidth / area.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(area.clientWidth, area.clientHeight);
-      };
-      window.addEventListener('resize', onResize);
-
-      visor3dEstado = { raf: 0, renderer, onResize };
-      const animar = () => {
-        controls.update();
-        renderer.render(scene, camera);
-        visor3dEstado.raf = requestAnimationFrame(animar);
-      };
-      animar();
-    } catch (err) {
-      const m = msg();
-      if (m) m.textContent = err.message || 'Não foi possível carregar a pré-visualização.';
-    }
-  }
 
   // ---------- Encomendas ----------
   async function encomendas() {
@@ -401,7 +287,7 @@
         ${e.prazo_desejado ? `<dt>Precisa até</dt><dd>${esc(e.prazo_desejado)}</dd>` : ''}
         ${e.link_referencia ? `<dt>Referência</dt><dd><a href="${esc(e.link_referencia)}" target="_blank" rel="noopener noreferrer">${esc(e.link_referencia)}</a></dd>` : ''}
         <dt>Descrição</dt><dd style="white-space:pre-line">${esc(e.descricao)}</dd>
-        ${e.arquivos.length ? `<dt>Arquivos</dt><dd>${e.arquivos.map((a) => `<a href="/api/admin/arquivos/${encodeURIComponent(a.arquivo)}">${esc(a.nome)}</a> <span class="suave">(${(a.tamanho / 1048576).toFixed(1)} MB)</span>${EXT_3D_VISIVEL.includes(extensao(a.nome)) ? ` · <button type="button" class="link-3d" data-visor3d="/api/admin/arquivos/${encodeURIComponent(a.arquivo)}" data-nome3d="${esc(a.nome)}">👁 Ver em 3D</button>` : ''}`).join('<br>')}</dd>` : ''}
+        ${e.arquivos.length ? `<dt>Arquivos</dt><dd>${e.arquivos.map((a) => `<a href="/api/admin/arquivos/${encodeURIComponent(a.arquivo)}">${esc(a.nome)}</a> <span class="suave">(${(a.tamanho / 1048576).toFixed(1)} MB)</span>${window.Visor3D.extensoes.includes(extensao(a.nome)) ? ` · <button type="button" class="link-3d" data-visor3d="/api/admin/arquivos/${encodeURIComponent(a.arquivo)}" data-nome3d="${esc(a.nome)}">👁 Ver em 3D</button>` : ''}`).join('<br>')}</dd>` : ''}
         ${e.pedido_codigo ? `<dt>Pedido gerado</dt><dd><strong>${esc(e.pedido_codigo)}</strong></dd>` : ''}
       </dl>
       <form id="form-enc" class="caixa" style="padding:1.2rem">

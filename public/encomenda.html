@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/app.js"></script>
+  <script src="/js/visor3d.js"></script>
   <title>Impressão 3D sob encomenda | DFR 3D Impressão</title>
   <meta name="description" content="Mande seu arquivo STL, uma foto ou sua ideia e receba o orçamento da DFR 3D Impressão.">
 </head>
@@ -66,7 +67,7 @@
   $('#telefone').addEventListener('input', (e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d{4})$/, '$1-$2'); });
 
   function listar() {
-    $('#lista').innerHTML = arquivos.map((f, i) => `<li><span>${esc(f.name)} <span class="suave">(${(f.size / 1048576).toFixed(1)} MB)</span></span><button type="button" class="link-btn" data-i="${i}">remover</button></li>`).join('');
+    $('#lista').innerHTML = arquivos.map((f, i) => `<li><span>${esc(f.name)} <span class="suave">(${(f.size / 1048576).toFixed(1)} MB)</span>${Visor3D.extensoes.includes(Visor3D.extensao(f.name)) ? ` · <button type="button" class="link-btn" data-ver3d="${i}">ver em 3d</button>` : ''}</span><button type="button" class="link-btn" data-i="${i}">remover</button></li>`).join('');
   }
   function adicionar(lista) {
     for (const f of lista) {
@@ -84,7 +85,12 @@
   drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('arrastando'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('arrastando'));
   drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('arrastando'); adicionar(e.dataTransfer.files); });
-  $('#lista').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { arquivos.splice(Number(b.dataset.i), 1); listar(); } });
+  $('#lista').addEventListener('click', (e) => {
+    const v = e.target.closest('[data-ver3d]');
+    if (v) { arquivos[Number(v.dataset.ver3d)].arrayBuffer().then((buf) => Visor3D.abrir(buf, arquivos[Number(v.dataset.ver3d)].name)); return; }
+    const b = e.target.closest('[data-i]');
+    if (b) { arquivos.splice(Number(b.dataset.i), 1); listar(); }
+  });
 
   DFR.conta().then((c) => { if (!c.logado) return; $('#nome').value ||= c.cliente.nome; $('#email').value ||= c.cliente.email; $('#telefone').value ||= c.cliente.telefone; });
 
