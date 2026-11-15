@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/app.js"></script>
+  <script src="/js/cep.js"></script>
   <title>Finalizar compra | DFR 3D Impressão</title>
 </head>
 <body>
@@ -167,13 +168,6 @@
           <span class="nome"><strong>${esc(o.nome)}</strong><small>${o.tipo === 'retirada' ? `${esc(o.detalhe || '')} · pronto em até ${o.prazo_dias || 1} dia(s) útil(eis)` : `Chega em até ${o.prazo_dias} dia(s) útil(eis), já contando a produção`}</small></span>
           <span class="valor">${o.preco_cents ? brl(o.preco_cents) : 'Grátis'}</span></label>`).join('');
       escolher(document.querySelector('input[name=entrega]:checked')?.value || opcoes[0].id);
-      fetch(`https://viacep.com.br/ws/${cep}/json/`).then((r) => r.json()).then((d) => {
-        if (d.erro) return;
-        if (!$('#rua').value) $('#rua').value = d.logradouro || '';
-        if (!$('#bairro').value) $('#bairro').value = d.bairro || '';
-        $('#cidade').value = d.localidade || $('#cidade').value;
-        $('#uf').value = d.uf || $('#uf').value;
-      }).catch(() => {});
     } catch (e) { $('#opcoes').innerHTML = ''; erro(e.message); }
   }
 
@@ -188,6 +182,7 @@
   $('#calcular').addEventListener('click', calcular);
   $('#cep').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); calcular(); } });
   $('#cep').addEventListener('input', () => { if ($('#cep').value.replace(/\D/g, '').length === 8) calcular(); });
+  CEP.ligar({ cep: '#cep', rua: '#rua', numero: '#numero', bairro: '#bairro', cidade: '#cidade', uf: '#uf' });
   $('#opcoes').addEventListener('change', (e) => escolher(e.target.value));
   const aplicar = () => { cupomAplicado = $('#cupom').value.trim().toUpperCase(); if (!cupomAplicado) $('#msg-cupom').innerHTML = ''; atualizarResumo(); };
   $('#aplicar').addEventListener('click', aplicar);

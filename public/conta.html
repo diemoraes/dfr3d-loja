@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/app.js"></script>
+  <script src="/js/cep.js"></script>
   <title>Minha conta | DFR 3D Impressão</title>
 </head>
 <body>
@@ -139,10 +140,7 @@
       if (!confirm('Excluir sua conta? Seus dados salvos serão apagados. Os pedidos continuam acessíveis pelo número.')) return;
       await DFR.api('/api/conta', { method: 'DELETE' }); location.href = '/';
     };
-    $('#cep').addEventListener('input', (e) => {
-      const cep = e.target.value.replace(/\D/g, ''); if (cep.length !== 8) return;
-      fetch(`https://viacep.com.br/ws/${cep}/json/`).then((r) => r.json()).then((d) => { if (d.erro) return; $('#rua').value = d.logradouro || $('#rua').value; $('#bairro').value = d.bairro || $('#bairro').value; $('#cidade').value = d.localidade; $('#uf').value = d.uf; }).catch(() => {});
-    });
+    CEP.ligar({ cep: '#cep', rua: '#rua', numero: '#numero', bairro: '#bairro', cidade: '#cidade', uf: '#uf' });
     $('#form-dados').onsubmit = async (e) => {
       e.preventDefault();
       const v = (id) => $('#' + id).value;

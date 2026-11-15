@@ -793,6 +793,21 @@
         <div class="acoes-gaveta" style="margin-top:.4rem;align-items:center"><button class="btn pequeno"><span>Trocar senha</span></button><span class="resultado-cfg" id="res-seguranca"></span></div>
       </form>`;
 
+    // Busca de endereço por CEP no remetente da etiqueta. O CEP das etiquetas é o de "Frete e retirada" (CEP_ORIGEM);
+    // este campo é só um atalho e não é salvo: preenche rua, bairro, cidade e UF, que a pessoa pode ajustar antes de salvar.
+    {
+      const origem = $('#cfg-CEP_ORIGEM');
+      const linha = $('#sec-remetente .linha-campos');
+      if (linha && window.CEP) {
+        linha.insertAdjacentHTML('afterbegin', `<div class="campo"><label for="rem-cep">CEP do remetente</label><input id="rem-cep" type="text" inputmode="numeric" autocomplete="off" placeholder="00000-000" value="${esc(origem ? origem.value : '')}"><div class="ajuda">Digite o CEP e a rua, o bairro, a cidade e a UF são preenchidos abaixo. Este campo não é salvo: o CEP usado nas etiquetas é o de "Frete e retirada".</div></div>`);
+        CEP.ligar({ cep: '#rem-cep', rua: '#cfg-REMETENTE_RUA', numero: '#cfg-REMETENTE_NUMERO', bairro: '#cfg-REMETENTE_BAIRRO', cidade: '#cfg-REMETENTE_CIDADE', uf: '#cfg-REMETENTE_UF' }, { dica: 'Depois clique em Salvar.' });
+        // Ao digitar o CEP de origem (Frete), já preenche o remetente também.
+        origem?.addEventListener('input', () => {
+          if (origem.value.replace(/\D/g, '').length === 8) { const r = $('#rem-cep'); r.value = origem.value; r.dispatchEvent(new Event('input', { bubbles: true })); }
+        });
+      }
+    }
+
     const resultado = (id, ok, msg) => { const el = $('#res-' + id); el.className = `resultado-cfg ${ok ? 'ok' : 'erro'}`; el.textContent = msg; };
     c.querySelector('.indice-cfg').onclick = (e) => { const a = e.target.closest('[data-ir-sec]'); if (!a) return; e.preventDefault(); $('#sec-' + a.dataset.irSec).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 
