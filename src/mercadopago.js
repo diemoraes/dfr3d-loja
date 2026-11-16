@@ -34,13 +34,14 @@ export async function criarPagamento(pedido) {
   let itens;
   if (pedido.desconto_cents > 0) {
     // Envia um item único com o total já descontado
-    itens = [{ title: `Pedido ${pedido.codigo} - DFR 3D`, quantity: 1, unit_price: (pedido.total_cents / 100).toFixed(2) }];
+    const resumo = lista.map((i) => `${i.quantidade}x ${titulo(i)}`).join(', ').slice(0, 250);
+    itens = [{ title: `Pedido ${pedido.codigo} - DFR 3D`, description: resumo || `Pedido ${pedido.codigo}`, category_id: 'art', quantity: 1, unit_price: (pedido.total_cents / 100).toFixed(2) }];
   } else {
     itens = lista.map((i) => ({
-      title: titulo(i), quantity: i.quantidade, unit_price: (i.preco_cents / 100).toFixed(2),
+      title: titulo(i), description: titulo(i), category_id: 'art', quantity: i.quantidade, unit_price: (i.preco_cents / 100).toFixed(2),
     }));
     if (pedido.frete_cents > 0) {
-      itens.push({ title: `Frete - ${pedido.entrega_servico}`, quantity: 1, unit_price: (pedido.frete_cents / 100).toFixed(2) });
+      itens.push({ title: `Frete - ${pedido.entrega_servico}`, description: `Envio ${pedido.entrega_servico}`, category_id: 'services', quantity: 1, unit_price: (pedido.frete_cents / 100).toFixed(2) });
     }
   }
   const [nome, ...sobrenome] = pedido.cliente_nome.split(' ');
@@ -60,6 +61,7 @@ export async function criarPagamento(pedido) {
     },
     items: itens,
     config: {
+      statement_descriptor: 'DFR3D',
       online: {
         success_url: `${config.baseUrl}/pedido/${pedido.codigo}`,
         pending_url: `${config.baseUrl}/pedido/${pedido.codigo}`,
