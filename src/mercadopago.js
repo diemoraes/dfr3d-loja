@@ -20,7 +20,9 @@ async function mpFetch(caminho, opcoes = {}) {
   const dados = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.error('Mercado Pago erro', res.status, JSON.stringify(dados));
-    throw new HttpError(502, 'Não foi possível falar com o Mercado Pago. Tente novamente.');
+    const err = new HttpError(502, 'Não foi possível falar com o Mercado Pago. Tente novamente.');
+    err.mpStatus = res.status;
+    throw err;
   }
   return dados;
 }

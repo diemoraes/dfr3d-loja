@@ -301,7 +301,12 @@ export function rotasPublicas(r) {
     const id = query.get('data.id') || query.get('id') || body?.data?.id;
     if (tipo === 'payment' && id && mpAtivo()) {
       if (!assinaturaValida(req, String(id))) return sendJson(res, 401, { ok: false });
-      try { await sincronizarPagamento(String(id)); } catch (e) { console.error('Webhook MP:', e.message); return sendJson(res, 500, { ok: false }); }
+      try { await sincronizarPagamento(String(id)); }
+      catch (e) {
+        if (e.mpStatus === 404) return sendJson(res, 200, { ok: true, ignorado: 'pagamento nao encontrado' });
+        console.error('Webhook MP:', e.message);
+        return sendJson(res, 500, { ok: false });
+      }
     }
     sendJson(res, 200, { ok: true });
   });
