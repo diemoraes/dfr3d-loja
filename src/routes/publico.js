@@ -5,7 +5,7 @@ import { sendJson, readJson, HttpError, limpar, soDigitos, emailValido, exigir }
 import { emitir } from '../eventos.js';
 import { calcularOpcoes, confirmarOpcao } from '../frete.js';
 import { carregarItens, validarCupom, calcularTotais, subtotalDe, descricaoCupom } from '../precos.js';
-import { mpAtivo, criarPagamento, buscarPagamento, statusDoPagamento, assinaturaValida } from '../mercadopago.js';
+import { mpAtivo, criarPagamento, buscarPagamento, buscarOrdem, statusDoPagamento, statusDaOrdem, assinaturaValida } from '../mercadopago.js';
 import { salvarArquivoEncomenda, salvarImagem } from '../uploads.js';
 import { processarNotificacao } from '../mercadolivre.js';
 import { clienteLogado, salvarDadosDoPedido, googleAtivo } from '../clientes.js';
@@ -55,6 +55,36 @@ function pedidoParaCliente(p) {
       .filter((v, idx, arr) => arr.findIndex((x) => x.produto_id === v.produto_id) === idx),
     historico: historico.map((h) => ({ ...h, status_nome: STATUS_PEDIDO[h.status] || h.status })),
   };
+}
+
+/** Consulta a ordem (Orders API) no Mercado Pago e atualiza o pedido. */
+async function sincronizarOrdem(orderId) {
+  const ord = await buscarOrdem(orderId);
+  const pedido = db.prepare('SELECT * FROM pedidos WHERE codigo = ?').get(ord.external_reference);
+  if (!pedido) return null;
+  const pag = ord.transactions?.payments?.[0] || {};
+  const mpPaymentId = String(pag.id || ord.id);
+  const metodo = pag.payment_method?.type || pag.payment_method?.id || '';
+  const pagStatus = pag.status || ord.status;
+  db.prepare("UPDATE pedidos SET mp_payment_id = ?, pagamento_status = ?, pagamento_metodo = ?, atualizado_em = datetime('now','localtime') WHERE id = ?")
+    .run(mpPaymentId, pagStatus, metodo, pedido.id);
+  const novo = statusDaOrdem(ord.status) || statusDoPagamento(pag.status);
+  if (novo === 'pago' && ['aguardando_pagamento', 'cancelado'].includes(pedido.status)) {
+    const pagoCents = Math.round(Number(ord.total_paid_amount || pag.amount || 0) * 100);
+    if (pagoCents < pedido.total_cents) {
+      console.error(`Ordem ${ord.id} com valor menor que o pedido ${pedido.codigo}`);
+      return db.prepare('SELECT * FROM pedidos WHERE id = ?').get(pedido.id);
+    }
+    const nota = pedido.status === 'cancelado' ? 'Pago depois do prazo — pedido reaberto, confira o estoque' : `Mercado Pago: ${metodo || ord.id}`;
+    return atualizarStatusPedido({ ...pedido, pagamento_status: pagStatus }, 'pago', nota);
+  }
+  if ((ord.status === 'failed' || pag.status === 'rejected') && pedido.status === 'aguardando_pagamento' && pedido.mp_payment_id !== mpPaymentId) {
+    emitir('pagamento:recusado', { pedido, status: pagStatus, detalhe: ord.status_detail || pag.status_detail || '' });
+  }
+  if (novo === 'cancelado' && ['aguardando_pagamento', 'pago'].includes(pedido.status)) {
+    return atualizarStatusPedido(pedido, 'cancelado', `Mercado Pago: ${ord.status}`);
+  }
+  return db.prepare('SELECT * FROM pedidos WHERE id = ?').get(pedido.id);
 }
 
 /** Consulta o pagamento no Mercado Pago e atualiza o pedido (nunca confia no que o navegador manda). */
@@ -235,9 +265,13 @@ export function rotasPublicas(r) {
   r.get('/api/pedidos/:codigo', async (req, res, { params, query }) => {
     let pedido = db.prepare('SELECT * FROM pedidos WHERE codigo = ?').get(params.codigo.toUpperCase());
     if (!pedido) throw new HttpError(404, 'Pedido não encontrado.');
+    const orderId = (query.get('order_id') || '').trim();
     const paymentId = soDigitos(query.get('payment_id'));
-    if (paymentId && mpAtivo() && ['aguardando_pagamento', 'cancelado'].includes(pedido.status)) {
-      try { pedido = (await sincronizarPagamento(paymentId)) || pedido; } catch (e) { console.error(e.message); }
+    if (mpAtivo() && ['aguardando_pagamento', 'cancelado'].includes(pedido.status)) {
+      try {
+        if (orderId && orderId !== 'null') pedido = (await sincronizarOrdem(orderId)) || pedido;
+        else if (paymentId) pedido = (await sincronizarPagamento(paymentId)) || pedido;
+      } catch (e) { console.error(e.message); }
     }
     sendJson(res, 200, pedidoParaCliente(pedido));
   });
@@ -294,16 +328,18 @@ export function rotasPublicas(r) {
     sendJson(res, 201, { codigo });
   });
 
-  // Notificação automática do Mercado Pago quando um pagamento muda
+  // Notificação automática do Mercado Pago quando um pagamento ou ordem muda
   r.post('/api/webhooks/mercadopago', async (req, res, { query }) => {
     const body = await readJson(req).catch(() => ({}));
     const tipo = query.get('type') || query.get('topic') || body.type;
     const id = query.get('data.id') || query.get('id') || body?.data?.id;
-    if (tipo === 'payment' && id && mpAtivo()) {
+    if ((tipo === 'order' || tipo === 'payment') && id && mpAtivo()) {
       if (!assinaturaValida(req, String(id))) return sendJson(res, 401, { ok: false });
-      try { await sincronizarPagamento(String(id)); }
-      catch (e) {
-        if (e.mpStatus === 404) return sendJson(res, 200, { ok: true, ignorado: 'pagamento nao encontrado' });
+      try {
+        if (tipo === 'order') await sincronizarOrdem(String(id));
+        else await sincronizarPagamento(String(id));
+      } catch (e) {
+        if (e.mpStatus === 404) return sendJson(res, 200, { ok: true, ignorado: 'nao encontrado' });
         console.error('Webhook MP:', e.message);
         return sendJson(res, 500, { ok: false });
       }

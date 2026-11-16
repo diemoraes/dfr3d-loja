@@ -26,7 +26,10 @@
   async function carregar() {
     const el = document.getElementById('pedido');
     try {
-      const q = params.get('payment_id') ? `?payment_id=${encodeURIComponent(params.get('payment_id'))}` : '';
+      const qs = new URLSearchParams();
+      if (params.get('payment_id')) qs.set('payment_id', params.get('payment_id'));
+      if (params.get('order_id') && params.get('order_id') !== 'null') qs.set('order_id', params.get('order_id'));
+      const q = qs.toString() ? `?${qs}` : '';
       const [p, cfg] = await Promise.all([DFR.api(`/api/pedidos/${encodeURIComponent(codigo)}${q}`), DFR.config()]);
       const whats = cfg.whatsapp ? `https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent(`Olá! Sobre o meu pedido ${p.codigo} na DFR 3D.`)}` : '';
       const mpVoltou = params.get('status') || params.get('collection_status');

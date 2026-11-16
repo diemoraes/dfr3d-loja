@@ -27,63 +27,62 @@ async function mpFetch(caminho, opcoes = {}) {
   return dados;
 }
 
-/** Cria a preferência de pagamento e devolve o link para o cliente pagar. */
+/** Cria a ordem de pagamento (Checkout Pro via Orders API) e devolve o link para o cliente pagar. */
 export async function criarPagamento(pedido) {
   const lista = JSON.parse(pedido.itens);
   const titulo = (i) => [i.nome, i.variacao, i.cor].filter(Boolean).join(' - ').slice(0, 250);
   let itens;
   if (pedido.desconto_cents > 0) {
-    // O Checkout Pro não aceita linha de desconto: envia um item único com o total já descontado
-    const resumo = lista.map((i) => `${i.quantidade}x ${titulo(i)}`).join(', ');
-    itens = [{ id: pedido.codigo, title: `Pedido ${pedido.codigo} - DFR 3D`, description: resumo.slice(0, 250), quantity: 1, unit_price: pedido.total_cents / 100, currency_id: 'BRL' }];
+    // Envia um item único com o total já descontado
+    itens = [{ title: `Pedido ${pedido.codigo} - DFR 3D`, quantity: 1, unit_price: (pedido.total_cents / 100).toFixed(2) }];
   } else {
-    itens = lista.map((i, idx) => ({
-      id: String(i.produto_id ?? `item-${idx + 1}`), title: titulo(i), quantity: i.quantidade, unit_price: i.preco_cents / 100, currency_id: 'BRL',
+    itens = lista.map((i) => ({
+      title: titulo(i), quantity: i.quantidade, unit_price: (i.preco_cents / 100).toFixed(2),
     }));
     if (pedido.frete_cents > 0) {
-      itens.push({ id: 'frete', title: `Frete - ${pedido.entrega_servico}`, quantity: 1, unit_price: pedido.frete_cents / 100, currency_id: 'BRL' });
+      itens.push({ title: `Frete - ${pedido.entrega_servico}`, quantity: 1, unit_price: (pedido.frete_cents / 100).toFixed(2) });
     }
   }
-  // Pagamento com desconto no Pix: o link só aceita Pix
-  const metodos = pedido.forma_pagamento === 'pix'
-    ? { excluded_payment_types: [{ id: 'credit_card' }, { id: 'debit_card' }, { id: 'ticket' }, { id: 'prepaid_card' }], installments: 1 }
-    : { installments: 12 };
   const [nome, ...sobrenome] = pedido.cliente_nome.split(' ');
   const tel = pedido.cliente_telefone.replace(/\D/g, '');
   const corpo = {
-    items: itens,
+    type: 'online',
+    processing_mode: 'manual',
+    total_amount: (pedido.total_cents / 100).toFixed(2),
     external_reference: pedido.codigo,
-    statement_descriptor: 'DFR3D',
+    expiration_time: `PT${config.pedidoExpiraHoras}H`,
     payer: {
-      name: nome,
-      surname: sobrenome.join(' '),
       email: pedido.cliente_email,
+      first_name: nome,
+      last_name: sobrenome.join(' ') || nome,
       ...(tel.length >= 10 ? { phone: { area_code: tel.slice(-11, -9) || tel.slice(0, 2), number: tel.slice(-9) } } : {}),
       ...(pedido.cliente_cpf ? { identification: { type: 'CPF', number: pedido.cliente_cpf } } : {}),
     },
-    back_urls: {
-      success: `${config.baseUrl}/pedido/${pedido.codigo}`,
-      pending: `${config.baseUrl}/pedido/${pedido.codigo}`,
-      failure: `${config.baseUrl}/pedido/${pedido.codigo}`,
+    items: itens,
+    config: {
+      online: {
+        success_url: `${config.baseUrl}/pedido/${pedido.codigo}`,
+        pending_url: `${config.baseUrl}/pedido/${pedido.codigo}`,
+        failure_url: `${config.baseUrl}/pedido/${pedido.codigo}`,
+        auto_return: 'approved',
+      },
     },
-    auto_return: 'approved',
-    payment_methods: metodos,
-    expires: true,
-    expiration_date_to: new Date(Date.now() + config.pedidoExpiraHoras * 3600 * 1000).toISOString(),
   };
-  // O Mercado Pago só aceita notification_url pública (https)
-  if (config.baseUrl.startsWith('https://')) corpo.notification_url = `${config.baseUrl}/api/webhooks/mercadopago`;
 
-  const pref = await mpFetch('/checkout/preferences', {
+  const ord = await mpFetch('/v1/orders', {
     method: 'POST',
     body: JSON.stringify(corpo),
     headers: { 'X-Idempotency-Key': `${pedido.codigo}-${pedido.total_cents}-${Date.now()}` },
   });
-  return { preferenceId: pref.id, link: pref.init_point };
+  return { preferenceId: ord.id, link: ord.checkout_url };
 }
 
 export async function buscarPagamento(paymentId) {
   return mpFetch(`/v1/payments/${encodeURIComponent(paymentId)}`);
+}
+
+export async function buscarOrdem(orderId) {
+  return mpFetch(`/v1/orders/${encodeURIComponent(orderId)}`);
 }
 
 /** Converte o status do Mercado Pago no status do pedido da loja. */
@@ -91,6 +90,13 @@ export function statusDoPagamento(mpStatus) {
   if (mpStatus === 'approved') return 'pago';
   if (['cancelled', 'refunded', 'charged_back'].includes(mpStatus)) return 'cancelado';
   return null; // pending, in_process, rejected: continua aguardando
+}
+
+/** Converte o status da Orders API do Mercado Pago no status do pedido da loja. */
+export function statusDaOrdem(orderStatus) {
+  if (orderStatus === 'processed') return 'pago';
+  if (['canceled', 'cancelled', 'expired', 'refunded'].includes(orderStatus)) return 'cancelado';
+  return null;
 }
 
 /** Valida a assinatura x-signature do webhook (se MP_WEBHOOK_SECRET estiver definido). */
