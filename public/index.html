@@ -10,7 +10,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Saira:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
-  <script src="/js/app.js"></script>
   <title>DFR 3D Impressão | Peças, presentes e decoração impressos em 3D</title>
   <meta name="description" content="Loja de impressão 3D em São José dos Campos: decoração, presentes, personalizados e peças sob encomenda. Pix com desconto, até 12x e envio para todo o Brasil.">
 </head>
@@ -27,7 +26,7 @@
           <a class="btn contorno" href="/encomenda"><span>Fazer encomenda</span></a>
         </div>
       </div>
-      <div id="h-destaque"><img class="logo-hero" src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="900" height="365"></div>
+      <div id="h-destaque"><picture><source srcset="/img/logo-transparente.webp" type="image/webp"><img class="logo-hero" src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="900" height="365" fetchpriority="high"></picture></div>
     </div>
   </section>
 
@@ -61,6 +60,7 @@
     </div>
   </section>
 </main>
+<script src="/js/app.js"></script>
 <script>
   const { esc, brl } = DFR;
   const ICONES = [
@@ -73,7 +73,7 @@
     <div class="secao-topo"><h2>${titulo} <span class="vermelho">${destaque}</span></h2>${link ? `<a class="btn contorno pequeno" href="${link}"><span>Ver todos</span></a>` : ''}</div>
     <div class="carrossel">${lista.map(DFR.cardProduto).join('')}</div></div></section>` : '';
 
-  Promise.all([DFR.api('/api/site'), DFR.api('/api/vitrine')]).then(([site, v]) => {
+  Promise.all([DFR.site(), DFR.api('/api/vitrine')]).then(([site, v]) => {
     const h = site.home;
     const [l1, l2] = h.titulo.split('|');
     document.getElementById('h-etiqueta').textContent = h.etiqueta;

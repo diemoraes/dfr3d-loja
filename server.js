@@ -7,7 +7,7 @@ import './src/db.js';
 import './src/notificacoes.js';   // e-mails e avisos no celular (escutam os eventos)
 import './src/mercadolivre.js';   // sincronização de estoque com o ML
 import './src/avisos-dono.js';    // e-mail para a loja a cada acontecimento no site
-import { Router, HttpError, sendJson, serveFile } from './src/http.js';
+import { Router, HttpError, sendJson, sendCompressed, serveFile } from './src/http.js';
 import { rotasPublicas } from './src/routes/publico.js';
 import { rotasAdmin } from './src/routes/admin.js';
 import { rotasConta } from './src/clientes.js';
@@ -49,9 +49,8 @@ const SEGURANCA = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-function enviarHtml(res, status, html) {
-  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
-  res.end(html);
+function enviarHtml(req, res, status, html) {
+  sendCompressed(req, res, status, 'text/html; charset=utf-8', html, { 'Cache-Control': 'no-cache' });
 }
 
 const servidor = http.createServer(async (req, res) => {
@@ -93,12 +92,13 @@ const servidor = http.createServer(async (req, res) => {
     const pagina = PAGINAS.find(([re]) => re.test(pathname));
     if (pagina) {
       const { status, html } = renderizar(pagina[1], pathname);
-      if (status === 404) return enviarHtml(res, 404, renderizar('404.html', pathname).html);
-      return enviarHtml(res, status, html);
+      if (status === 404) return enviarHtml(req, res, 404, renderizar('404.html', pathname).html);
+      return enviarHtml(req, res, status, html);
     }
-    if (serveFile(req, res, PUBLIC, pathname)) return;
+    const cacheEstatico = /^\/(css|js|img)\//.test(pathname) ? 'public, max-age=2592000' : 'public, max-age=3600';
+    if (serveFile(req, res, PUBLIC, pathname, { cache: cacheEstatico })) return;
 
-    enviarHtml(res, 404, renderizar('404.html', pathname).html);
+    enviarHtml(req, res, 404, renderizar('404.html', pathname).html);
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
     if (status === 500) console.error(err);

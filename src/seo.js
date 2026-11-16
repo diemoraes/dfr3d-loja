@@ -7,6 +7,7 @@ import { postPublico, postsPublicados } from './blog.js';
 import { dadosSite } from './routes/conteudo.js';
 
 const PUBLIC = path.join(ROOT, 'public');
+const ASSET_VER = Date.now().toString(36);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const jsonLd = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, '\\u003c')}</script>`;
 const absoluta = (u) => (u.startsWith('http') ? u : config.baseUrl + u);
@@ -128,6 +129,36 @@ export function renderizar(arquivo, pathname) {
     head += '\n  <meta name="robots" content="noindex">';
   }
   html = html.replace('</head>', `${head}\n</head>`);
+  // Evita bloqueio de renderização da fonte externa e versiona CSS/JS para cache longo
+  html = html.replace(
+    /<link href="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)" rel="stylesheet">/,
+    '<link rel="preload" as="style" href="$1" onload="this.onload=null;this.rel=\'stylesheet\'">\n  <noscript><link rel="stylesheet" href="$1"></noscript>'
+  );
+  html = html.replace(/(href|src)="(\/(?:css|js)\/[^"?]+\.(?:css|js))"/g, `$1="$2?v=${ASSET_VER}"`);
+  if (arquivo !== 'admin/index.html') {
+    const ativo = (p) => (pathname === p || (p !== '/' && pathname.startsWith(p)) ? 'ativo' : '');
+    const topo = `
+<a class="sr-only" href="#conteudo">Pular para o conteúdo</a>
+<header class="topo"><div class="container linha-topo">
+  <a class="marca" href="/" aria-label="DFR 3D Impressão - início"><picture><source srcset="/img/logo-transparente-sm.webp" type="image/webp"><img src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="160" height="65"></picture></a>
+  <form class="busca" id="busca-topo" role="search" action="/produtos">
+    <label for="campo-busca" class="sr-only">Buscar produtos</label>
+    <input id="campo-busca" name="busca" type="search" placeholder="Buscar produtos, presentes, ideias…" autocomplete="off" value="" aria-autocomplete="list" aria-controls="sugestoes">
+    <button aria-label="Buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    <div class="sugestoes" id="sugestoes" role="listbox" hidden></div>
+  </form>
+  <nav class="acoes-topo" aria-label="Atalhos">
+    <a href="#" class="icone-topo icone-whats" id="whats-topo" target="_blank" rel="noopener" aria-label="WhatsApp" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.5 14.1c-.2.7-1.4 1.3-1.9 1.4-.5.1-1.1.1-1.8-.1-.4-.1-1-.3-1.7-.7-3-1.3-4.9-4.3-5.1-4.5-.1-.2-1.2-1.6-1.2-3 0-1.4.7-2.1 1-2.4.2-.3.5-.4.8-.4h.6c.2 0 .4 0 .6.5.2.6.8 2 .9 2.1.1.2.1.4 0 .6-.1.2-.2.3-.3.5l-.4.5c-.2.2-.3.3-.1.6.2.3.8 1.4 1.8 2.2 1.2 1.1 2.2 1.4 2.5 1.6.3.1.5.1.7-.1.2-.2.8-1 1-1.3.2-.3.4-.3.7-.2.3.1 1.8.8 2.1 1 .3.2.5.2.6.4.1.2.1.9-.1 1.6z" fill="currentColor"/></svg><span class="so-desktop">WhatsApp</span></a>
+    <a href="/conta" class="icone-topo link-conta ${ativo('/conta')}" id="link-conta" aria-label="Minha conta"><span class="avatar" aria-hidden="true">👤</span><span class="so-desktop" id="nome-conta">Entrar</span></a>
+    <a href="/carrinho" class="icone-topo btn-carrinho ${ativo('/carrinho')}" aria-label="Carrinho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.4a1.6 1.6 0 0 0 1.6-1.2L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9.5" cy="20" r="1.5" fill="currentColor"/><circle cx="17" cy="20" r="1.5" fill="currentColor"/></svg><span class="so-desktop">Carrinho</span><span class="contador" id="contador-carrinho"></span></a>
+  </nav>
+</div>
+<div class="faixa"></div>
+<nav class="menu-categorias" aria-label="Categorias"><div class="container" id="menu-categorias">
+  <a href="/produtos" class="${pathname === '/produtos' ? 'ativo' : ''}"><strong>Todos</strong><small>Ver a loja</small></a>
+</div></nav></header>`;
+    html = html.replace('<body>', `<body>${topo}`);
+  }
   if (arquivo === 'politicas.html') html = preencherPoliticas(html);
   return { status, html };
 }

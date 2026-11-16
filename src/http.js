@@ -1,6 +1,7 @@
 // Utilitários HTTP: roteador simples, JSON, cookies e arquivos estáticos
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -75,6 +76,25 @@ const MIME = {
   '.stl': 'model/stl', '.3mf': 'model/3mf', '.obj': 'model/obj', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8',
 };
 
+const COMPRESSIVEIS = new Set(['.html', '.css', '.js', '.json', '.svg', '.txt', '.xml']);
+
+export function sendCompressed(req, res, status, contentType, body, extraHeaders = {}) {
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(body, 'utf8');
+  const aceitaGzip = /\bgzip\b/i.test(req.headers['accept-encoding'] || '');
+  const headers = { 'Content-Type': contentType, ...extraHeaders };
+  if (aceitaGzip && buf.length >= 256) {
+    const gz = zlib.gzipSync(buf);
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = 'Accept-Encoding';
+    headers['Content-Length'] = gz.length;
+    res.writeHead(status, headers);
+    return res.end(req.method === 'HEAD' ? undefined : gz);
+  }
+  headers['Content-Length'] = buf.length;
+  res.writeHead(status, headers);
+  return res.end(req.method === 'HEAD' ? undefined : buf);
+}
+
 /** Serve um arquivo de dentro de baseDir com proteção contra "../". */
 export function serveFile(req, res, baseDir, relPath, { cache = 'public, max-age=3600', download = false } = {}) {
   const full = path.resolve(baseDir, '.' + path.posix.normalize('/' + relPath));
@@ -85,11 +105,15 @@ export function serveFile(req, res, baseDir, relPath, { cache = 'public, max-age
   const ext = path.extname(full).toLowerCase();
   const headers = {
     'Content-Type': MIME[ext] || 'application/octet-stream',
-    'Content-Length': stat.size,
     'Cache-Control': cache,
     'X-Content-Type-Options': 'nosniff',
   };
   if (download) headers['Content-Disposition'] = `attachment; filename="${path.basename(full)}"`;
+  if (!download && COMPRESSIVEIS.has(ext) && stat.size < 2_000_000) {
+    sendCompressed(req, res, 200, headers['Content-Type'], fs.readFileSync(full), headers);
+    return true;
+  }
+  headers['Content-Length'] = stat.size;
   res.writeHead(200, headers);
   if (req.method === 'HEAD') return res.end(), true;
   fs.createReadStream(full).pipe(res);

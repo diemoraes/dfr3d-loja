@@ -61,6 +61,12 @@ const DFR = (() => {
     return lojaConfig;
   }
 
+  let siteCache = null;
+  function site() {
+    if (!siteCache) siteCache = api('/api/site');
+    return siteCache;
+  }
+
   // ---------- Analytics (só depois do consentimento — LGPD) ----------
   const fila = [];
   let analyticsPronto = false;
@@ -169,31 +175,39 @@ const DFR = (() => {
     const atual = location.pathname;
     const ativo = (p) => (atual === p || (p !== '/' && atual.startsWith(p)) ? 'ativo' : '');
     const qAtual = new URLSearchParams(location.search).get('busca') || '';
-    document.body.insertAdjacentHTML('afterbegin', `
-      <a class="sr-only" href="#conteudo">Pular para o conteúdo</a>
-      <header class="topo"><div class="container linha-topo">
-        <a class="marca" href="/" aria-label="DFR 3D Impressão - início"><img src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="160" height="65"></a>
-        <form class="busca" id="busca-topo" role="search" action="/produtos">
-          <label for="campo-busca" class="sr-only">Buscar produtos</label>
-          <input id="campo-busca" name="busca" type="search" placeholder="Buscar produtos, presentes, ideias…" autocomplete="off" value="${esc(qAtual)}" aria-autocomplete="list" aria-controls="sugestoes">
-          <button aria-label="Buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
-          <div class="sugestoes" id="sugestoes" role="listbox" hidden></div>
-        </form>
-        <nav class="acoes-topo" aria-label="Atalhos">
-          <a href="#" class="icone-topo icone-whats" id="whats-topo" target="_blank" rel="noopener" aria-label="WhatsApp" hidden>${ICONE_WHATS}<span class="so-desktop">WhatsApp</span></a>
-          <a href="/conta" class="icone-topo link-conta ${ativo('/conta')}" id="link-conta" aria-label="Minha conta"><span class="avatar" aria-hidden="true">👤</span><span class="so-desktop" id="nome-conta">Entrar</span></a>
-          <a href="/carrinho" class="icone-topo btn-carrinho ${ativo('/carrinho')}" aria-label="Carrinho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.4a1.6 1.6 0 0 0 1.6-1.2L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9.5" cy="20" r="1.5" fill="currentColor"/><circle cx="17" cy="20" r="1.5" fill="currentColor"/></svg><span class="so-desktop">Carrinho</span><span class="contador" id="contador-carrinho"></span></a>
-        </nav>
-      </div>
-      <div class="faixa"></div>
-      <nav class="menu-categorias" aria-label="Categorias"><div class="container" id="menu-categorias">
-        <a href="/produtos" class="${atual === '/produtos' && !location.search ? 'ativo' : ''}"><strong>Todos</strong><small>Ver a loja</small></a>
-      </div></nav></header>`);
+    if (!document.querySelector('header.topo')) {
+      document.body.insertAdjacentHTML('afterbegin', `
+        <a class="sr-only" href="#conteudo">Pular para o conteúdo</a>
+        <header class="topo"><div class="container linha-topo">
+          <a class="marca" href="/" aria-label="DFR 3D Impressão - início"><picture><source srcset="/img/logo-transparente-sm.webp" type="image/webp"><img src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="160" height="65"></picture></a>
+          <form class="busca" id="busca-topo" role="search" action="/produtos">
+            <label for="campo-busca" class="sr-only">Buscar produtos</label>
+            <input id="campo-busca" name="busca" type="search" placeholder="Buscar produtos, presentes, ideias…" autocomplete="off" value="${esc(qAtual)}" aria-autocomplete="list" aria-controls="sugestoes">
+            <button aria-label="Buscar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+            <div class="sugestoes" id="sugestoes" role="listbox" hidden></div>
+          </form>
+          <nav class="acoes-topo" aria-label="Atalhos">
+            <a href="#" class="icone-topo icone-whats" id="whats-topo" target="_blank" rel="noopener" aria-label="WhatsApp" hidden>${ICONE_WHATS}<span class="so-desktop">WhatsApp</span></a>
+            <a href="/conta" class="icone-topo link-conta ${ativo('/conta')}" id="link-conta" aria-label="Minha conta"><span class="avatar" aria-hidden="true">👤</span><span class="so-desktop" id="nome-conta">Entrar</span></a>
+            <a href="/carrinho" class="icone-topo btn-carrinho ${ativo('/carrinho')}" aria-label="Carrinho"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.4a1.6 1.6 0 0 0 1.6-1.2L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9.5" cy="20" r="1.5" fill="currentColor"/><circle cx="17" cy="20" r="1.5" fill="currentColor"/></svg><span class="so-desktop">Carrinho</span><span class="contador" id="contador-carrinho"></span></a>
+          </nav>
+        </div>
+        <div class="faixa"></div>
+        <nav class="menu-categorias" aria-label="Categorias"><div class="container" id="menu-categorias">
+          <a href="/produtos" class="${atual === '/produtos' && !location.search ? 'ativo' : ''}"><strong>Todos</strong><small>Ver a loja</small></a>
+        </div></nav></header>`);
+    } else {
+      const campo = document.getElementById('campo-busca');
+      if (campo && !campo.value && qAtual) campo.value = qAtual;
+      if (atual === '/produtos' && location.search) {
+        document.querySelector('#menu-categorias a[href="/produtos"]')?.classList.remove('ativo');
+      }
+    }
 
     // Menu de categorias (editável no painel)
-    api('/api/site').then((site) => {
+    site().then((s) => {
       const cat = new URLSearchParams(location.search).get('categoria');
-      const itens = site.menu.map((m) => `<a href="/produtos?categoria=${encodeURIComponent(m.nome)}" class="${cat === m.nome ? 'ativo' : ''}"><strong>${esc(m.nome)}</strong><small>${esc(m.subtitulo)}</small></a>`).join('');
+      const itens = s.menu.map((m) => `<a href="/produtos?categoria=${encodeURIComponent(m.nome)}" class="${cat === m.nome ? 'ativo' : ''}"><strong>${esc(m.nome)}</strong><small>${esc(m.subtitulo)}</small></a>`).join('');
       document.getElementById('menu-categorias').insertAdjacentHTML('beforeend', `${itens}
         <a href="/produtos?promo=1" class="destaque-menu ${new URLSearchParams(location.search).get('promo') ? 'ativo' : ''}"><strong>Promoções</strong><small>Preços especiais</small></a>
         <a href="/encomenda" class="${ativo('/encomenda')}"><strong>Sob encomenda</strong><small>Seu projeto em 3D</small></a>
@@ -212,7 +226,7 @@ const DFR = (() => {
     if (cfg.whatsapp) { const w = document.getElementById('whats-topo'); w.href = `https://wa.me/${cfg.whatsapp}?text=${encodeURIComponent('Olá! Vim pelo site da DFR 3D.')}`; w.hidden = false; }
     document.body.insertAdjacentHTML('beforeend', `
       <footer class="rodape"><div class="container">
-        <img src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="100" height="40">
+        <picture><source srcset="/img/logo-transparente-sm.webp" type="image/webp"><img src="/img/logo-transparente.png" alt="DFR 3D Impressão" width="100" height="40" loading="lazy"></picture>
         <div class="links">
           <a href="/produtos">Produtos</a><a href="/produtos?promo=1">Promoções</a><a href="/encomenda">Peça sob encomenda</a><a href="/blog">Blog</a><a href="/conta">Meus pedidos</a>
           ${cfg.whatsapp ? `<a href="https://wa.me/${esc(cfg.whatsapp)}" target="_blank" rel="noopener" class="whats-rodape">${ICONE_WHATS} WhatsApp ${esc(formatarTelefone(cfg.whatsapp))}</a>` : ''}
@@ -232,5 +246,5 @@ const DFR = (() => {
   document.addEventListener('DOMContentLoaded', montarLayout);
   window.addEventListener('storage', atualizarContador);
 
-  return { formatarTelefone, conta, urlLogin, brl, esc, $, api, carrinho, detalhesItem, config, toast, cardProduto, fotoOuPlaceholder, estrelas, track, armazenar };
+  return { formatarTelefone, conta, urlLogin, brl, esc, $, api, site, carrinho, detalhesItem, config, toast, cardProduto, fotoOuPlaceholder, estrelas, track, armazenar };
 })();

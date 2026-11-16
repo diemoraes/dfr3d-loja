@@ -365,14 +365,16 @@ input[type=checkbox], input[type=radio] { width: auto; accent-color: var(--verme
 .card .preco s.de { display: block; font-family: var(--fonte); font-style: normal; font-weight: 400; font-size: .8rem; color: var(--suave); }
 .preco-de { color: var(--suave); font-size: 1.1rem; text-decoration: line-through; margin-top: .4rem; }
 .faixa-promo { display: inline-flex; align-items: center; gap: .5rem; background: rgba(22,163,74,.15); color: #4ade80; border: 1px solid #14532d; border-radius: 8px; padding: .3rem .7rem; font-weight: 600; font-size: .88rem; }
-.selos-home { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: var(--raio); overflow: hidden; margin: 2.5rem 0 0; }
+.selos-home { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: var(--raio); overflow: hidden; margin: 2.5rem 0 0; min-height: 86px; }
 .selos-home div { background: var(--grafite); padding: 1.2rem 1.3rem; display: flex; gap: .9rem; align-items: center; }
 .selos-home .ic { width: 40px; height: 40px; border-radius: 10px; background: rgba(225,10,20,.12); display: grid; place-items: center; flex-shrink: 0; transform: skewX(-8deg); }
 .selos-home .ic svg { width: 22px; height: 22px; stroke: var(--vermelho); fill: none; stroke-width: 2; transform: skewX(8deg); }
 .selos-home strong { display: block; font-size: .95rem; }
 .selos-home span { color: var(--suave); font-size: .85rem; }
-@media (max-width: 860px) { .selos-home { grid-template-columns: 1fr 1fr; } }
-.hero-produto { background: var(--grafite); border: 1px solid var(--linha); border-radius: 20px; overflow: hidden; text-decoration: none; display: block; position: relative; transition: transform .2s, border-color .2s; }
+#h-destaque { min-height: 440px; display: flex; align-items: center; justify-content: center; }
+#secoes { min-height: 520px; }
+@media (max-width: 860px) { .selos-home { grid-template-columns: 1fr 1fr; min-height: 172px; } #h-destaque { min-height: 320px; } }
+.hero-produto { width: 100%; background: var(--grafite); border: 1px solid var(--linha); border-radius: 20px; overflow: hidden; text-decoration: none; display: block; position: relative; transition: transform .2s, border-color .2s; }
 .hero-produto:hover { transform: translateY(-4px); border-color: var(--vermelho); }
 .hero-produto .foto { aspect-ratio: 4/3; background: #0d0d10; }
 .hero-produto .foto img { width: 100%; height: 100%; object-fit: cover; }
