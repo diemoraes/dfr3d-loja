@@ -4,7 +4,7 @@
 import { config } from './config.js';
 import { eventos } from './eventos.js';
 import { db, lerJson, lerAjuste, salvarAjuste, STATUS_PEDIDO } from './db.js';
-import { enviarEmail, modelo, tabelaItens } from './notificacoes.js';
+import { enviarEmail, avisarCelular, modelo, tabelaItens } from './notificacoes.js';
 
 const brl = (c) => ((c || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -117,6 +117,9 @@ function verificarEstoque(ids, origem) {
     if (avisados[id] === p.estoque) continue; // já avisou deste mesmo nível
     avisados[id] = p.estoque;
     const esgotou = p.estoque === 0;
+    if (esgotou) {
+      avisarCelular(`🚨 PRODUTO ESGOTADO: ${p.nome}${origem ? `\nMotivo: ${origem}` : ''}\n${config.baseUrl}/admin#produtos`);
+    }
     avisar(esgotou ? `🚨 Esgotou: ${p.nome}` : `📉 Estoque baixo: ${p.nome} (${p.estoque})`, esgotou ? 'Produto esgotado' : 'Estoque acabando',
       `<p><b>${esc(p.nome)}</b> ${esgotou ? 'esgotou e aparece como "Esgotado" na loja' : `tem só <b>${p.estoque}</b> unidade(s)`}${origem ? ` depois de ${origem}` : ''}. Hora de imprimir mais!</p>`, painel('produtos'));
   }
